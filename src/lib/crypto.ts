@@ -5,8 +5,9 @@
 // localStorage. This keeps keys out of plaintext while remaining purely
 // client-side — nothing leaves the device.
 
-const SETTINGS_KEY = "cinefora.settings.v1.enc";
-const KEY_MATERIAL_KEY = "cinefora.enc.key.v1";
+// Canonical storage key — used for BOTH saving and loading (must match storage.ts).
+const SETTINGS_KEY = "cinefora.settings.v1";
+const KEY_MATERIAL_KEY = "cinefora.settings.v1.key";
 
 function base64ToArrayBuffer(b64: string): ArrayBuffer {
   const binary = atob(b64);

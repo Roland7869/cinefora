@@ -18,7 +18,7 @@ function build(category: ExtractionCategory, source: IngestedSource | null): str
   const text = activeText(source);
   const instruction: Record<ExtractionCategory, string> = {
     characters:
-      "Extract every CHARACTER mentioned or implied. For each: name, physical LOOK (age, build, distinguishing features), FORM (posture, gait, silhouette), SIZE (height relative to others), ROLE (function within the story/world), PSYCHOLOGICAL PROFILE (traits, motives, emotional state), and DETAILS (key facts). Return a JSON array.",
+      "You are a Character Designer, Casting Director, AI Visual Consistency Specialist, and Character Sheet Prompter. Extract every character present or introduced in the chapter text into a production-ready character reference system. Build master character specifications, physical traits, expression sheets, multi-angle descriptions, pose references, Z-Image Turbo prompts, and 4-panel master reference sheet prompts to ensure 100% visual consistency across 15-second visual beats. Scope: Include all primary, secondary, and newly introduced background characters/entities (e.g., specific aliens, robots, guards). Naming Standard: Use ONE primary canonical name per character throughout the system. Unnamed entities in the prose (e.g., 'the Brute officer') MUST be assigned a specific name or clear identifier. Original Appearance & Celebrity Avoidance: All generated physical descriptions and visual prompts MUST depict unique, original character features. Prompts must explicitly avoid using famous actor names or likenesses to prevent celebrity resemblance. Format: Render positive-only visual prompts (80-250 words) optimized for few-step diffusion models (e.g., Z-Image Turbo in Amuse) without negative prompts. Return the full reference system as readable Markdown text.",
     assets:
       "You are an expert literary archivist and asset extractor. Analyze the provided text excerpt and extract every significant physical object, artifact, tool, vehicle, or item mentioned. For each identified asset, extract the following specific attributes: 1. Asset Name: The name or common designator of the object. 2. Look: Physical appearance, colors, materials, markings, texture, or state of wear. 3. Form: Shape, structure, geometry, or overall build (e.g., blade-like, spherical, modular). 4. Size: Absolute dimensions, weight, or relative size compared to standard objects/people. 5. Function: Purpose, practical use, supernatural/technological abilities, or operational mechanism. RULES: Extract ONLY facts explicitly stated or strongly implied by the text. Do not invent details. If an attribute (e.g., size) is not mentioned, set its value to \"Not specified\". Output MUST be valid JSON matching the schema below. OUTPUT FORMAT: { \"assets\": [ { \"name\": \"Object Name\", \"look\": \"Detailed appearance description\", \"form\": \"Shape and physical structural build\", \"size\": \"Dimensions or relative scale\", \"function\": \"Primary purpose and operational capabilities\" } ] }",
     locations:
@@ -83,6 +83,63 @@ PASSAGE:
 """${text}"""
 
 Produce your output as a JSON array. Each element represents one beat and contains: id, act, sceneHeading, location, time_of_day, primary_focus, shot_scale, camera_movement, panels[] (an array of 4 panel descriptions with timestamps 00:00, 00:05, 00:10, 00:15), lighting, and movement. Return ONLY the JSON array.`;
+}
+
+export function characterPrompt(source: IngestedSource | null): string {
+  const text = activeText(source);
+  return `You are a Character Designer, Casting Director, AI Visual Consistency Specialist, and Character Sheet Prompter. Extract every character present or introduced in the chapter text into a dedicated characters.md file. Build master character specifications, physical traits, expression sheets, multi-angle descriptions, pose references, Z-Image Turbo prompts, and 4-panel master reference sheet prompts (for Nano Banana 2 / external tools) to ensure 100% visual consistency across 15-second visual beats.
+
+CHARACTER EXTRACTION RULES:
+- Scope: Include all primary, secondary, and newly introduced background characters/entities (e.g., specific aliens, robots, guards).
+- Naming Standard: Use ONE primary canonical name per character throughout the system. Unnamed entities in the prose (e.g., "the Brute officer") MUST be assigned a specific name or clear identifier.
+- Original Appearance & Celebrity Avoidance: All generated physical descriptions and visual prompts MUST depict unique, original character features. Prompts must explicitly avoid using famous actor names or likenesses to prevent celebrity resemblance.
+- Format: Render positive-only visual prompts (80-250 words) optimized for few-step diffusion models (e.g., Z-Image Turbo in Amuse) without negative prompts.
+- Actor-to-Character-Sheet Prompter Integration: When a custom reference image is provided or used as the identity source, generate a ready-to-run 4-panel master character sheet prompt using the locked 4-panel template format (close-up far left → full-body front → 45° facing left → 45° facing right, mirrored, neutral expression with mouth slightly open, pure white background).
+
+CHARACTER REFERENCE OUTPUT FORMAT (characters.md)
+Generate the full reference system for each extracted character using the structured template below.
+
+### Character Master Sheet: [CHARACTER NAME]
+
+* **Source & First Appearance:** Chapter [X], Beat [Y]
+* **Age & Species/Race:** [Age range, human / alien / cyborg / etc.]
+* **Physical Build & Height:** [Height, body type, posture, physical presence]
+* **Facial Features:** [Unique face shape, eye color/shape, nose, mouth/lips, distinguishing marks/scars - distinctly original appearance, non-celebrity]
+* **Hair:** [Color, length, style, texture]
+* **Skin / Texture:** [Tone, texture, complexion, scarring]
+* **Default Wardrobe:** [Primary clothing, fabric type, wear-and-tear, colors, fit]
+* **Voice & Behavior:** [Vocal pitch/tone, characteristic posture, gestures, movement signature]
+
+#### Expression Reference Sheet
+
+| Emotion | Facial Cues (Brows, Eyes, Jaw, Mouth) | Visual Camera Features |
+| :--- | :--- | :--- |
+| **Fear** | Eyes wide, pupils dilated, jaw tight, brows knit | Forehead tension, slight tremor in lower lip |
+| **Anger** | Jaw clenched, brows furrowed, nostrils flared | Flushed skin, rigid posture, temple strain |
+| **Exhaustion** | Eyelids drooping, slack jaw, sunken cheeks | Dark under-eye circles, pale complexion |
+| **Determination** | Set jaw, locked gaze, steady brows | Squared shoulders, sharp focus on eyes |
+
+#### Multi-Angle Description
+
+* **Front:** [Symmetry, key facial alignment, frontal proportion]
+* **Left / Right Profile:** [Nose bridge, jawline, forehead slope, ear position]
+* **Three-Quarter View:** [3/4 angle transition, primary hero shot features]
+
+#### Z-Image Turbo Generation Prompts (Positive-Only, 80-250 words)
+
+> **Master Portrait (Head & Shoulders):**
+> Photorealistic portrait of [NAME], an original person, distinct unique face, [age] [gender/species], [hair description], [eye color/shape], [skin texture/marks], [face shape]. Wearing [default wardrobe fabric/color]. Neutral expression looking into camera. Soft, even lighting. Neutral background. Shot on 85mm lens, sharp facial focus, natural skin texture.
+
+> **Full Body Reference:**
+> Photorealistic full-body shot of [NAME], an original person, distinct unique face, [age] [gender/species], [hair description], [skin/build]. Wearing [full wardrobe top-to-bottom]. Natural standing stance, head-to-toe in frame. Soft studio lighting. Plain backdrop. Shot on 50mm lens, full-figure clarity.
+
+> **Cinematic In-Character Still:**
+> Cinematic landscape 16:9 still of [NAME], an original character, [scene context], [lighting mood], [atmosphere]. Shot on 35mm film, shallow depth of field, natural movement frozen mid-gesture.
+
+PASSAGE:
+"""${text}"""
+
+Produce the complete character reference system for every character found in the passage, using the template above. Return the output as readable Markdown text.`;
 }
 
 export function extractPrompt(category: ExtractionCategory, source: IngestedSource | null): string {

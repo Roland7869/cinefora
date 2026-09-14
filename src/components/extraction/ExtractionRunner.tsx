@@ -14,7 +14,7 @@ interface ExtractionRunnerProps {
   result: AiResponse | null;
   rows: ExtractionRow[];
   onRun: () => void;
-  onExport: (rows: ExtractionRow[]) => void;
+  onExport: (data: unknown) => void;
 }
 
 export function ExtractionRunner({ category, loading, result, rows, onRun, onExport }: ExtractionRunnerProps) {

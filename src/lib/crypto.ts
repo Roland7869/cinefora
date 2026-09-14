@@ -28,7 +28,7 @@ async function deriveKey(): Promise<CryptoKey> {
     "raw",
     crypto.getRandomValues(new Uint8Array(32)),
     { name: "AES-GCM" },
-    false,
+    true,
     ["encrypt", "decrypt"],
   );
   const exported = await crypto.subtle.exportKey("raw", keyMaterial);

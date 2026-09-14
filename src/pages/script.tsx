@@ -44,7 +44,7 @@ export default function ScriptPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-6 py-8">
-      <PageHeader title="Script" subtitle="Scene breakdown, dialogue formatting, and act structuring." icon={<PenLine className="h-5 w-5" />} />
+      <PageHeader title="Script" subtitle="Dialogue scripts in 15-second visual beats, minimum 10 per chapter." icon={<PenLine className="h-5 w-5" />} />
 
       <ExtractionRunner
         category={CATEGORY}
@@ -86,7 +86,9 @@ function parseScript(text: string): ExtractionRow[] {
       details: JSON.stringify({
         act: item.act,
         location: item.location,
-        characters: item.characters,
+        time_of_day: item.time_of_day,
+        beat_purpose: item.beat_purpose,
+        speaking_characters: item.speaking_characters,
         action: item.action,
         dialogue: item.dialogue,
       }),

@@ -20,7 +20,7 @@ function build(category: ExtractionCategory, source: IngestedSource | null): str
     characters:
       "Extract every CHARACTER mentioned or implied. For each: name, physical LOOK (age, build, distinguishing features), FORM (posture, gait, silhouette), SIZE (height relative to others), ROLE (function within the story/world), PSYCHOLOGICAL PROFILE (traits, motives, emotional state), and DETAILS (key facts). Return a JSON array.",
     assets:
-      "Extract every significant ASSET / OBJECT: props, tools, artifacts, technology, clothing, vehicles, weapons, instruments. For each: name, LOOK, FORM, SIZE, FUNCTION (how it is used / its purpose). Return a JSON array.",
+      "You are an expert literary archivist and asset extractor. Analyze the provided text excerpt and extract every significant physical object, artifact, tool, vehicle, or item mentioned. For each identified asset, extract the following specific attributes: 1. Asset Name: The name or common designator of the object. 2. Look: Physical appearance, colors, materials, markings, texture, or state of wear. 3. Form: Shape, structure, geometry, or overall build (e.g., blade-like, spherical, modular). 4. Size: Absolute dimensions, weight, or relative size compared to standard objects/people. 5. Function: Purpose, practical use, supernatural/technological abilities, or operational mechanism. RULES: Extract ONLY facts explicitly stated or strongly implied by the text. Do not invent details. If an attribute (e.g., size) is not mentioned, set its value to \"Not specified\". Output MUST be valid JSON matching the schema below. OUTPUT FORMAT: { \"assets\": [ { \"name\": \"Object Name\", \"look\": \"Detailed appearance description\", \"form\": \"Shape and physical structural build\", \"size\": \"Dimensions or relative scale\", \"function\": \"Primary purpose and operational capabilities\" } ] }",
     locations:
       "Extract every LOCATION / ENVIRONMENT: places, biomes, interiors, landscapes, atmospheres. For each: name, LOOK (visual mood, palette, lighting), FORM (spatial layout, shape), SIZE/SCALE, FUNCTION (how it is used or operated). Return a JSON array.",
     buildings:
@@ -56,7 +56,13 @@ export function parseExtraction(jsonText: string, category: ExtractionCategory):
   const cleaned = jsonText.replace(/```json\n?|```/gi, "").trim();
   try {
     const parsed = JSON.parse(cleaned);
-    const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.results) ? parsed.results : [parsed];
+    const arr = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.results)
+      ? parsed.results
+      : Array.isArray(parsed?.assets)
+      ? parsed.assets
+      : [parsed];
     return arr.map((item: Record<string, unknown>, i: number) => ({
       id: String(item.id ?? `${category}-${i}`),
       name: String(item.name ?? item.look ?? item.subject ?? item.title ?? `Entry ${i + 1}`),

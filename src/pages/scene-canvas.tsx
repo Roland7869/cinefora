@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { LayoutGrid, Users, Package, Trash2, Plus, ArrowLeftRight, ArrowUpDown } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useBook } from "@/context/IngestedBookContext";
-import { scriptPrompt } from "@/lib/prompts";
+import { sceneCanvasPrompt, scriptPrompt } from "@/lib/prompts";
 import { runExtraction } from "@/lib/ai";
 import { useSettings } from "@/context/AppSettingsContext";
 import type { ExtractionCategory, ExtractionRow } from "@/types";
@@ -28,12 +28,13 @@ export default function SceneCanvasPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [extraction, setExtraction] = useState<{ running: boolean; done: boolean }>({ running: false, done: false });
   const [seeded, setSeeded] = useState(false);
+  const [output, setOutput] = useState<string>("");
 
   const handleSeed = async () => {
     if (!source) return;
     setExtraction((e) => ({ ...e, running: true }));
     try {
-      const res = await runExtraction(settings.engines, CATEGORY, scriptPrompt(source));
+      const res = await runExtraction(settings.engines, "characters", scriptPrompt(source));
       const rows = parseScenes(res.content).slice(0, 6);
       setActors(
         rows.map((row, i) => ({
@@ -46,6 +47,17 @@ export default function SceneCanvasPage() {
         })),
       );
       setSeeded(true);
+    } finally {
+      setExtraction((e) => ({ ...e, running: false, done: true }));
+    }
+  };
+
+  const handleGenerateCanvas = async () => {
+    if (!source) return;
+    setExtraction((e) => ({ ...e, running: true }));
+    try {
+      const res = await runExtraction(settings.engines, "characters", sceneCanvasPrompt(source));
+      setOutput(sanitize(res.content));
     } finally {
       setExtraction((e) => ({ ...e, running: false, done: true }));
     }
@@ -73,7 +85,7 @@ export default function SceneCanvasPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-6 py-8">
-      <PageHeader title="Scene Canvas" subtitle="Interactive spatial blocking and action dynamics." icon={<LayoutGrid className="h-5 w-5" />} />
+      <PageHeader title="Scene Canvas" subtitle="Interactive spatial blocking + high-fidelity canvas prompt generation." icon={<LayoutGrid className="h-5 w-5" />} />
 
       <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
         <aside className="space-y-4">
@@ -156,9 +168,120 @@ export default function SceneCanvasPage() {
             </div>
           )}
         </div>
+
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-white/80">Scene Canvas Generation</h3>
+              <p className="text-xs text-white/40">Generate high-fidelity canvas prompts with environmental geometry, props, and spatial geography.</p>
+            </div>
+            <Button size="sm" onClick={handleGenerateCanvas} disabled={extraction.running || !source}>
+              {extraction.running ? (
+                <span className="h-4 w-4 animate-spin"><svg viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg></span>
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {extraction.running ? "Generating…" : "Generate Canvas"}
+            </Button>
+          </div>
+          <div className="max-h-[400px] overflow-y-auto rounded-lg border border-white/10 bg-[#0a0a12] p-4">
+            {output ? (
+              <SceneCanvasRenderer content={output} />
+            ) : (
+              <div className="py-12 text-center text-sm text-white/40">
+                Connect a book section, then generate the scene canvas to produce high-fidelity canvas prompts.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
+}
+
+function sanitize(text: string): string {
+  return text.replace(/```markdown\n?|```/gi, "").trim();
+}
+
+function SceneCanvasRenderer({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: ReactNode[] = [];
+  let inTable = false;
+  let tableRows: string[] = [];
+
+  const flushTable = () => {
+    if (inTable && tableRows.length > 0) {
+      const body = tableRows
+        .slice(1)
+        .map((row) => {
+          const cells = row.split("|").filter((c) => c.trim() !== "");
+          return `<tr class="border-b border-white/5 last:border-0">` + cells
+            .map((c) => `<td class="px-3 py-2 text-[12px] text-white/70">${c.trim()}</td>`)
+            .join("") + `</tr>`;
+        })
+        .join("");
+      elements.push(`<table class="mb-4 w-full"><thead><tr class="border-b border-white/10">` + tableRows[0]
+        .split("|")
+        .filter((c) => c.trim() !== "")
+        .map((c) => `<th class="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-white/40">${c.trim()}</th>`)
+        .join("") + `</tr></thead><tbody>${body}</tbody></table>`);
+    }
+    tableRows = [];
+    inTable = false;
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      if (!inTable) {
+        inTable = true;
+        tableRows.push(trimmed);
+      } else {
+        tableRows.push(trimmed);
+      }
+      return;
+    }
+    flushTable();
+    if (trimmed === "") {
+      elements.push(<div key={idx} className="h-2" />);
+      return;
+    }
+    if (trimmed.startsWith("# ")) {
+      elements.push(<h1 key={idx} className="mb-3 text-lg font-semibold text-white">{trimmed.slice(2)}</h1>);
+    } else if (trimmed.startsWith("## ")) {
+      elements.push(<h2 key={idx} className="mb-2 mt-4 text-base font-semibold text-white">{trimmed.slice(3)}</h2>);
+    } else if (trimmed.startsWith("### ")) {
+      elements.push(<h3 key={idx} className="mb-2 mt-3 text-sm font-semibold text-white/80">{trimmed.slice(4)}</h3>);
+    } else if (trimmed.startsWith("> ")) {
+      elements.push(<blockquote key={idx} className="my-2 border-l-2 border-[#6366F1] pl-3 italic text-white/60">{trimmed.slice(2)}</blockquote>);
+    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      elements.push(<li key={idx} className="ml-4 list-disc text-white/70">{renderInline(trimmed.slice(2))}</li>);
+    } else if (trimmed.startsWith("1.") || trimmed.startsWith("2.") || trimmed.startsWith("3.") || trimmed.startsWith("4.")) {
+      elements.push(<li key={idx} className="ml-4 list-decimal text-white/70">{renderInline(trimmed.replace(/^\d+\.\s/, ""))}</li>);
+    } else {
+      elements.push(<p key={idx} className="my-1 text-sm leading-relaxed text-white/70">{renderInline(trimmed)}</p>);
+    }
+  });
+  flushTable();
+  return <div className="space-y-1">{elements}</div>;
+}
+
+function renderInline(text: string): string {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
+  return parts
+    .map((part) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return `<strong class="font-semibold text-white">${part.slice(2, -2)}</strong>`;
+      }
+      if (part.startsWith("*") && part.endsWith("*") && part.length > 1) {
+        return `<em class="italic text-white/80">${part.slice(1, -1)}</em>`;
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return `<code class="rounded bg-white/10 px-1 py-0.5 font-mono text-[11px] text-[#6366F1]">${part.slice(1, -1)}</code>`;
+      }
+      return part;
+    })
+    .join("");
 }
 
 const CATEGORY: ExtractionCategory = "characters";

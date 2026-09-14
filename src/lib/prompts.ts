@@ -142,6 +142,33 @@ PASSAGE:
 Produce the complete character reference system for every character found in the passage, using the template above. Return the output as readable Markdown text.`;
 }
 
+export function sceneCanvasPrompt(source: IngestedSource | null): string {
+  const text = activeText(source);
+  return `You are a Production Designer, Visual Effects Supervisor, and AI Scene Canvas Specialist. Construct a dedicated scene_canvas.md file that synthesizes environmental geometry, architecture, lighting, key props, and active character spatial orientation per 15-second visual beat. Generate high-fidelity canvas prompts (optimized for FLUX.1, Wan 3.0, xAI, or Z-Image Turbo) that capture the complete visual landscape, keeping characters distinct, non-celebrity, and perfectly integrated into the world.
+
+SCENE CANVAS RULES:
+- Scope: Every beat MUST feature a complete scene canvas breakdown detailing background architecture, key foreground/midground props, environmental FX, lighting state, and exact spatial placement of active characters.
+- Originality & Non-Celebrity Standard: All characters within the canvas descriptions and generation prompts must remain original, unique entities—never resembling known actors or public figures.
+- Spatial Geography: Clearly define left-to-right, foreground-to-background positioning so downstream image generation maintains structural and perspective consistency across beats.
+- Format: Render positive-only, detailed canvas prompts (100-300 words) rich in lighting, texture, spatial layout, and environmental atmosphere.
+
+SCENE CANVAS OUTPUT FORMAT (scene_canvas.md)
+Generate the complete scene canvas system for each beat using the structured layout below.
+
+<scene_canvas beat_number="[X]" duration="15s" act="[1/2/3]">
+  <slugline>INT/EXT. LOCATION - TIME</slugline>
+  <primary_setting>[Key architectural space or landscape definition]</primary_setting>
+  <active_characters>[List of characters in frame with relative spatial positions]</active_characters>
+  <key_objects>[Essential props, tech, furniture, or environmental set pieces]</key_objects>
+</scene_canvas>
+Each beat must also include the high-fidelity canvas prompt (100-300 words) and the complete spatial geography (left-to-right, foreground-to-background positioning).
+
+PASSAGE:
+"""${text}"""
+
+Produce the complete scene canvas system for every beat found in the passage, using the template above. Return the output as readable Markdown text.`;
+}
+
 export function extractPrompt(category: ExtractionCategory, source: IngestedSource | null): string {
   return build(category, source);
 }

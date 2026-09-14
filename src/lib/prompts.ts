@@ -57,11 +57,32 @@ Produce your output as a JSON array. Each element represents one beat and contai
 }
 
 export function storyboardPrompt(source: IngestedSource | null): string {
-  return `${system()}\n\nCreate a STORYBOARD shot list for adapting the passage. For each shot: shot number, CAMERA ANGLE, MOVEMENT, SUBJECT, VISUAL PROMPT (a vivid image-generation prompt), and DURATION. Return a JSON array:
-{ "id": string, "shotNumber": string, "angle": string, "movement": string, "subject": string, "visualPrompt": string, "duration": string }
-Passage:
-"""${activeText(source)}"""
-Return ONLY the JSON array.`;
+  const text = activeText(source);
+  return `You are a Professional Film Director, Storyboard Artist, and AI Cinematography Specialist. Transform the provided prose chapter directly into a dedicated, production-ready storyboard divided into 15-second visual beats (minimum 10 beats per chapter). Isolate the camera progression, 4-panel visual roadmap, atmospheric lighting, and physical movement per beat. Dialogue and character sheet extractions are handled in their respective dedicated files.
+
+PACING & STORYBOARD BEAT RULES:
+- Minimum Beat Count: Every chapter MUST be divided into a minimum of 10 visual beats. Longer or dense chapters scale up dynamically (12, 15, 20+ beats) based on narrative density.
+- Beat Duration: Each beat represents exactly 15 seconds of scene runtime.
+- 4-Panel Composition Rule: Each beat features a 4-panel breakdown mapping the visual progression:
+  * Panel 1 (00:00): Opening framing, initial posture, camera positioning.
+  * Panel 2 (00:05): Movement development, camera tracking/dolly, lighting shifts.
+  * Panel 3 (00:10): Climax/peak emotional or visual action beat.
+  * Panel 4 (00:15): Final frame state inherited by the next beat.
+
+STORYBOARD OUTPUT FORMAT (Per Beat)
+Every beat must be rendered using the structured XML metadata wrapper + formatted screenplay text below:
+<storyboard_beat number="[X]" duration="15s" act="[1/2/3]">
+  <slugline>INT/EXT. LOCATION - TIME</slugline>
+  <primary_focus>[Main character / object / environment focus]</primary_focus>
+  <shot_scale>[Extreme Wide / Wide / Medium / Medium Close-Up / Close-Up / ECU]</shot_scale>
+  <camera_movement>[Static / Dolly In / Tracking / Pan / Crane / Handheld]</camera_movement>
+</storyboard_beat>
+Each beat must also include the 4-panel visual roadmap (Panel 1 @00:00, Panel 2 @00:05, Panel 3 @00:10, Panel 4 @00:15), atmospheric lighting notes, and physical movement description.
+
+PASSAGE:
+"""${text}"""
+
+Produce your output as a JSON array. Each element represents one beat and contains: id, act, sceneHeading, location, time_of_day, primary_focus, shot_scale, camera_movement, panels[] (an array of 4 panel descriptions with timestamps 00:00, 00:05, 00:10, 00:15), lighting, and movement. Return ONLY the JSON array.`;
 }
 
 export function extractPrompt(category: ExtractionCategory, source: IngestedSource | null): string {

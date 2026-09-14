@@ -44,7 +44,7 @@ export default function StoryboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-6 py-8">
-      <PageHeader title="Storyboard" subtitle="Keyframe shot list, visual prompt builder, and camera movement specs." icon={<Film className="h-5 w-5" />} />
+      <PageHeader title="Storyboard" subtitle="4-panel visual beats, 15-second camera progression, minimum 10 per chapter." icon={<Film className="h-5 w-5" />} />
 
       <ExtractionRunner
         category={CATEGORY}
@@ -76,14 +76,24 @@ function parseStoryboard(text: string): ExtractionRow[] {
     const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.shots) ? parsed.shots : [parsed];
     return arr.map((item: Record<string, unknown>, i: number) => ({
       id: String(item.id ?? `shot-${i + 1}`),
-      name: String(item.visualPrompt ?? item.subject ?? `Shot ${i + 1}`),
+      name: String(item.primary_focus ?? item.subject ?? item.sceneHeading ?? `Shot ${i + 1}`),
       look: "",
       form: "",
       size: "",
       function: "",
       role: "",
       traits: "",
-      details: JSON.stringify({ shotNumber: item.shotNumber, angle: item.angle, movement: item.movement, subject: item.subject, duration: item.duration }),
+      details: JSON.stringify({
+        act: item.act,
+        location: item.location,
+        time_of_day: item.time_of_day,
+        primary_focus: item.primary_focus,
+        shot_scale: item.shot_scale,
+        camera_movement: item.camera_movement,
+        panels: item.panels,
+        lighting: item.lighting,
+        movement: item.movement,
+      }),
     }));
   } catch {
     return [];

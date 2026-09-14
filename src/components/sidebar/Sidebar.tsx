@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { GROUP_ORDER, NAV_ITEMS, type NavGroup } from "@/components/sidebar/nav-items";
 import { ROUTES } from "@/router.routes";
@@ -15,6 +15,7 @@ const GROUP_LABELS: Record<NavGroup, string> = {
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const path = location.pathname.replace(/^\//, "");
   const active: Route = (ROUTES[path] ?? "script") as Route;
@@ -67,7 +68,7 @@ export function Sidebar() {
                     <button
                       key={item.id}
                       onClick={() => {
-                        window.location.hash = item.route;
+                        navigate(item.route);
                         window.scrollTo(0, 0);
                       }}
                       title={collapsed ? item.label : undefined}

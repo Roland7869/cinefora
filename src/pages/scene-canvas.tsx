@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Grid3x3, Users, Package, Trash2, Plus, ArrowLeftRight, ArrowUpDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Grid3D, Users, Package, Trash2, Plus, ArrowLeftRight, ArrowUpDown } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useBook } from "@/context/IngestedBookContext";
 import { scriptPrompt } from "@/lib/prompts";
@@ -73,7 +72,7 @@ export default function SceneCanvasPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-6 py-8">
-      <PageHeader title="Scene Canvas" subtitle="Interactive spatial blocking and action dynamics." icon={<Grid3x3 className="h-5 w-5" />} />
+      <PageHeader title="Scene Canvas" subtitle="Interactive spatial blocking and action dynamics." icon={<Grid3D className="h-5 w-5" />} />
 
       <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
         <aside className="space-y-4">

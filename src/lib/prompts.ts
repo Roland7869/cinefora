@@ -1,7 +1,7 @@
 // Prompt builders that combine the active ingested book section with a
 // category-specific instruction and ask the model to return structured JSON.
 
-import type { ExtractionCategory, ExtractionRow, IngestedSource } from "@/types";
+import type { ExtractionCategory, IngestedSource } from "@/types";
 
 function activeText(source: IngestedSource | null): string {
   if (!source) return "";

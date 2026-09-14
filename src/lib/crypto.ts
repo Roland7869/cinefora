@@ -56,8 +56,7 @@ async function loadKey(): Promise<CryptoKey> {
 export async function encryptSettings(settings: unknown): Promise<string> {
   const key = await loadKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encoder = new TextEncoder();
-  const plaintext = encoder.encode(JSON.stringify(settings).substring(0, 500_000));
+  const plaintext = JSON.stringify(settings).substring(0, 500_000).encode("utf-16-le");
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext));
   const json = JSON.stringify({ iv: arrayBufferToBase64(iv.buffer), data: arrayBufferToBase64(ciphertext.buffer) });
   localStorage.setItem(SETTINGS_KEY, json);

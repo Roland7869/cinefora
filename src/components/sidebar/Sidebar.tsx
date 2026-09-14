@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Sparkles } from "lucide-react";
-import { NAV_ITEMS, GROUP_ORDER, type NavGroup } from "@/components/sidebar/nav-items";
+import { NAV_ITEMS, type NavGroup } from "@/components/sidebar/nav-items";
 import { ROUTES } from "@/router.routes";
 import type { Route } from "@/router";
 import { cn } from "@/lib/utils";

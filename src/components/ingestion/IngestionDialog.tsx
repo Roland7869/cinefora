@@ -35,10 +35,9 @@ function readFileText(file: File): Promise<string> {
   });
 }
 
-async function readDirectoryRecursive(dir: FileSystemFileHandle | FileSystemDirectoryHandle, prefix: string): Promise<string> {
+async function readDirectoryRecursive(dir: FileSystemDirectoryHandle, prefix: string): Promise<string> {
   let text = "";
-  const entries = dir.values() as AsyncIterableIterator<FileSystemFileHandle | FileSystemDirectoryHandle>;
-  for (const entry of await entries) {
+  for (const entry of await dir.values()) {
     if (entry.kind === entry.kind.directory) {
       text += await readDirectoryRecursive(entry, `${prefix}${dir.name}/`);
     } else if (entry.kind === entry.kind.file && /\.(md|markdown|txt)$/.test(entry.name)) {

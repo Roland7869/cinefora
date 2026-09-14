@@ -23,7 +23,7 @@ export function GenericExtractionPage({ category, title, subtitle, icon, prompt 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AiResponse | null>(null);
   const [rows, setRows] = useState<ExtractionRow[]>([]);
-  const [activeFilter, setActiveFilter] = useState<string>("");
+  const [activeFilter, setActiveFilter] = useState<keyof ExtractionRow>("");
 
   const handleRun = async () => {
     if (!source) return;

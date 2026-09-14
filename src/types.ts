@@ -57,14 +57,6 @@ export interface ExtractionRow {
   role?: string;
   traits?: string;
   details?: string;
-  // Page-specific fields used by the production pipeline.
-  sceneHeading?: string;
-  action?: string;
-  dialogue?: string[];
-  shotNumber?: string;
-  angle?: string;
-  movement?: string;
-  visualPrompt?: string;
 }
 
 export type ExtractionCategory =

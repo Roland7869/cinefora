@@ -7,7 +7,7 @@
 // localStorage for big payloads.
 
 import type { AppSettings, IngestedSource, MarkdownFile, PromptLibraryDoc } from "@/types";
-import { decryptSettings, encryptSettings } from "@/lib/crypto";
+import { encryptSettings } from "@/lib/crypto";
 
 export const DB_NAME = "cinefora";
 export const DB_VERSION = 1;
@@ -34,11 +34,8 @@ function writeJSON<T>(key: string, value: T): void {
 }
 
 // --- Settings (engines + config) -------------------------------------------
-export async function loadSettings(): Promise<AppSettings> {
-  const raw = readJSON(getSettingsKey(), null);
-  if (!raw) return defaultSettings();
-  const decrypted = await decryptSettings(raw as string);
-  return decrypted as AppSettings;
+export function loadSettings(): Promise<AppSettings> {
+  return encryptSettings(readJSON(getSettingsKey(), null));
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {

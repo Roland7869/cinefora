@@ -33,11 +33,43 @@ function build(category: ExtractionCategory, source: IngestedSource | null): str
 }
 
 export function scriptPrompt(source: IngestedSource | null): string {
-  return `${system()}\n\nBreak the passage into a SCREEN SCRIPT: scene headings, action lines, and dialogue formatted in standard screenplay form (SCENE HEADING / ACTION / CHARACTER / DIALOGUE / PARENTHETICAL). Preserve act structure where implied. Return a JSON array of scenes, each:
-{ "id": string, "act": number, "sceneHeading": string, "location": string, "characters": string[], "action": string, "dialogue": string[] }
-Passage:
-"""${activeText(source)}"""
-Return ONLY the JSON array.`;
+  const text = activeText(source);
+  return `You are a Professional Regisseur (Film Director), Screenwriter, Storyboard Artist, and AI Cinematic Pipeline Specialist. Transform the provided prose chapter into structured, highly detailed screenplay scripts divided into sequential visual beats, complete with character consistency sheets, atmospheric sci-fi lighting rules, 4-panel storyboards, and persistent continuity tracking for downstream video generation.
+
+CHAPTER PACING & BEAT STANDARD:
+- Minimum Beat Count: Every chapter MUST be divided into a minimum of 10 visual beats. Longer or dense chapters must scale up dynamically to 12, 15, or 20+ beats as required by narrative density.
+- Beat Duration: Each beat represents exactly 15 seconds of video screen time.
+- Audio & Dialogue Timing: Voiceover or dialogue within a beat must conclude around 00:11-00:12, leaving 3-4 seconds of pure visual, emotional, and audio linger before the scene transitions.
+
+STAGE 0: CHARACTER REFERENCE SYSTEM (Mandatory First Output)
+Before any scene breakdown begins, generate the foundational reference set for every named, supporting, or newly introduced character:
+- Master Character Sheet: Source & Age (origin chapter, age, species/race); Physical Traits (height, build, posture, skin, face shape, eyes, nose, mouth, hair, scars/tattoos); Voice & Persona (vocal tone, pitch, pace, physical translation of personality); Wardrobe (default wardrobe and context-specific variations).
+- Expression Sheet: Table mapping physical facial changes (brows, eyes, jaw, mouth) to visual camera cues for Fear, Anger, Hope, Exhaustion, Determination, Despair, Numbness, etc.
+- Multi-Angle Sheet: Detailed descriptions for Front, Left Profile, Right Profile, 3/4 Left, 3/4 Right, Top-Down, Bottom-Up.
+- Pose Sheet: Breakdown of physical silhouettes for Standing Neutral, Walking, Running, Sitting, Kneeling, Reaching.
+- Z-Image Turbo Prompts: Positive-only image prompts (80-250 words, no negative prompts) for Master Portrait (85mm lens, portrait_4_3), Full Body Reference (50mm lens, portrait_16_9), Cinematic In-Character Still (35mm film still, landscape_16_9), and Per-Emotion Expression Prompts.
+
+WORLD & ENVIRONMENT MASTER
+For every distinct environment present in the text, document: Slugline & Type (INT/EXT, location name, time of day); Lighting & Atmosphere (key/fill setup, color temperature, volumetric haze, floating particulates, humidity/condensation); Atmospheric Rule for Sci-Fi: Air is never clean or sterile; light is always mediated through a medium (dust, steam, smoke, fog, ionized gas).
+
+BEAT BREAKDOWN & SCREENPLAY OUTPUT SCHEMA (Per Beat)
+Every 15-second beat MUST be rendered using the following dual-structure (XML metadata wrapper + formatted screenplay text):
+<scene number="[X]" duration="15s" act="[1/2/3]">
+  <slugline>INT/EXT. LOCATION - TIME</slugline>
+  <location>[Location Name]</location>
+  <time_of_day>[Time of Day]</time_of_day>
+  <narrative_pov>[POV Character/Narrator]</narrative_pov>
+  <beat_purpose>[Primary Purpose]</beat_purpose>
+  <narrative_weight>[1-10]</narrative_weight>
+  <characters>[List of visible characters]</characters>
+  <mood>[Emotional tone / Atmosphere]</mood>
+</scene>
+Each scene must also include the screenplay text: SCENE HEADING / ACTION / CHARACTER / DIALOGUE / PARENTHETICAL.
+
+PASSAGE:
+"""${text}"""
+
+Produce your output as a JSON array. Each element represents one beat and contains: id, act, sceneHeading, location, time_of_day, narrative_pov, beat_purpose, narrative_weight, characters[], mood, action (the screenplay action lines), dialogue[] (the screenplay dialogue lines), and visual_prompt (a vivid 15-second image-generation prompt for the linger shot). Return ONLY the JSON array.`;
 }
 
 export function storyboardPrompt(source: IngestedSource | null): string {

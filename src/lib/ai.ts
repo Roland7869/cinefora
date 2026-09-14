@@ -38,9 +38,10 @@ const GEMINI_MODEL = "gemini-2.0-flash";
 async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: string): Promise<AiResponse> {
   const cloud = config.cloud;
   const apiKey = cloud.apiKey;
+  const anthropic = provider === "anthropic";
   const start = performance.now();
   try {
-    if (provider === "anthropic" || !apiKey) {
+    if (anthropic || !apiKey) {
       return { content: "No API key configured for the selected cloud provider.", engine: provider, model: "", elapsedMs: 0 };
     }
     if (provider === "gemini") {
@@ -72,7 +73,7 @@ async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: 
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: provider === "anthropic" ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini",
+        model: anthropic ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini",
         messages: [{ role: "system", content: "You are a meticulous film-production extraction specialist. Return ONLY valid JSON, nothing else." }, { role: "user", content: prompt }],
         temperature: 0.2,
         stream: false,
@@ -83,7 +84,7 @@ async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: 
     return {
       content: text ?? (res.ok ? "Empty response from provider." : (data as any)?.error?.message),
       engine: provider,
-      model: provider === "anthropic" ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini",
+      model: anthropic ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini",
       elapsedMs: Math.round(performance.now() - start),
     };
   } catch (err) {

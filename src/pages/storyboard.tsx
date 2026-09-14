@@ -17,7 +17,7 @@ export default function StoryboardPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AiResponse | null>(null);
   const [rows, setRows] = useState<ExtractionRow[]>([]);
-  const [activeFilter, setActiveFilter] = useState<keyof ExtractionRow>("");
+  const [activeFilter, setActiveFilter] = useState<string>("");
 
   const handleRun = async () => {
     if (!source) return;
@@ -60,7 +60,7 @@ export default function StoryboardPage() {
         <ExtractionTable
           category={CATEGORY}
           rows={rows}
-          filter={(row) => Boolean(row.visualPrompt || row.subject || row.movement)}
+          filter={(row) => Boolean(row.details || row.name)}
           activeFilter={activeFilter}
           onFilterChange={setActiveFilter}
         />

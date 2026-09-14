@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Sparkles } from "lucide-react";
-import { NAV_ITEMS, type NavGroup } from "@/components/sidebar/nav-items";
+import { GROUP_ORDER, NAV_ITEMS, type NavGroup } from "@/components/sidebar/nav-items";
 import { ROUTES } from "@/router.routes";
 import type { Route } from "@/router";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,7 @@ export function Sidebar() {
       <div className="flex h-screen flex-col">
         <div className="flex items-center justify-between px-4 h-16 shrink-0">
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] shadow-[0_6px_20px_-8px_theme('colors.primary.glow')]">
+            <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] shadow-[0_6px_20px_-8px_rgba(99,102,241,0.6)]">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             {!collapsed && (
@@ -76,7 +76,7 @@ export function Sidebar() {
                         "group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-all duration-150",
                         collapsed ? "justify-center" : "justify-between",
                         isActive
-                          ? "bg-[#6366F1] text-white shadow-[0_8px_22px_-14px_theme('colors.primary.glow')]"
+                          ? "bg-[#6366F1] text-white shadow-[0_8px_22px_-14px_rgba(99,102,241,0.6)]"
                           : "text-white/60 hover:bg-white/5 hover:text-white",
                       )}
                     >

@@ -90,7 +90,7 @@ export default function PromptLibraryPage() {
     persist({
       id: `${newTitle.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}`,
       title: newTitle.trim(),
-      category,
+      category: category as PromptLibraryDoc["category"],
       content: newContent.trim(),
       updatedAt: new Date().toISOString(),
     });

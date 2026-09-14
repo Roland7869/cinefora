@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useBook } from "@/context/IngestedBookContext";
 import { useSettings } from "@/context/AppSettingsContext";
-import { runExtraction, sanitizeAiResponse } from "@/lib/ai";
-import { extractPrompt, parseExtraction } from "@/lib/prompts";
+import { runExtraction } from "@/lib/ai";
+import { extractPrompt, parseExtraction, sanitizeAiResponse } from "@/lib/prompts";
 import type { AiResponse, ExtractionCategory, ExtractionRow } from "@/types";
 
 interface ExtractionRunnerProps {

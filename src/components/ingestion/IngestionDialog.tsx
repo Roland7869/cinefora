@@ -37,9 +37,13 @@ function readFileText(file: File): Promise<string> {
 
 async function readDirectoryRecursive(dir: FileSystemDirectoryHandle, prefix: string): Promise<string> {
   let text = "";
-  for (const entry of await dir.values()) {
+  const iterator = (dir as unknown as { values: () => AsyncIterableIterator<FileSystemEntry> }).values();
+  while (true) {
+    const result = await iterator.next();
+    if (result.done) break;
+    const entry = result.value;
     if (entry.kind === entry.kind.directory) {
-      text += await readDirectoryRecursive(entry, `${prefix}${dir.name}/`);
+      text += await readDirectoryRecursive(entry as unknown as FileSystemDirectoryHandle, `${prefix}${dir.name}/`);
     } else if (entry.kind === entry.kind.file && /\.(md|markdown|txt)$/.test(entry.name)) {
       const file = await entry.getFile();
       text += `${file.name}\n${await readFileText(file)}\n\n`;
@@ -154,7 +158,7 @@ export function IngestionDialog({ open, onConfirm, onClose }: IngestionDialogPro
                   const entry = (files[0] as unknown as { handle: FileSystemFileHandle }).handle;
                   try {
                     setLoading(true);
-                    const rootHandle = entry;
+                    const rootHandle = entry as unknown as FileSystemDirectoryHandle;
                     const text = await readDirectoryRecursive(rootHandle, "");
                     setText(text.trim());
                     setLabel(files[0].name);

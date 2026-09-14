@@ -6,11 +6,11 @@ import type { ExtractionCategory } from "@/types";
 export default function LocationPage() {
   return (
     <GenericExtractionPage
-      category={"location" as ExtractionCategory}
+      category={"locations" as ExtractionCategory}
       title="Location & Environment Extraction"
       subtitle="Extract places, biomes, visual look, spatial form, scale, and operational function."
       icon={<Map className="h-5 w-5" />}
-      prompt={(source) => extractPrompt("location", source)}
+      prompt={(source) => extractPrompt("locations", source)}
     />
   );
 }

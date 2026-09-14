@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useBook } from "@/context/IngestedBookContext";
 
 export function ContextBar({ onOpenIngestion }: { onOpenIngestion: () => void }) {
-  const { hasSource, isPersisted } = useBook();
+  const { source, hasSource, isPersisted } = useBook();
 
   return (
     <div className="sticky top-0 z-20 border-b border-white/5 bg-[#0a0a12]/80 backdrop-blur-xl">
@@ -23,8 +23,8 @@ export function ContextBar({ onOpenIngestion }: { onOpenIngestion: () => void })
             <Button variant="outline" size="sm" className="border-white/10 bg-white/5 text-white/80 hover:bg-white/10" onClick={onOpenIngestion}>
               <Upload className="mr-1.5 h-3.5 w-3.5" /> Connect text
             </Button>
-            {hasSource && (
-              <span className="hidden max-w-[200px] truncate font-mono text-[11px] text-white/50 sm:block">{hasSource.label}</span>
+            {source && (
+              <span className="hidden max-w-[200px] truncate font-mono text-[11px] text-white/50 sm:block">{source.label}</span>
             )}
           </div>
         </div>

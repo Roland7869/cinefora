@@ -22,7 +22,7 @@ function build(category: ExtractionCategory, source: IngestedSource | null): str
     assets:
       "You are an expert literary archivist and asset extractor. Analyze the provided text excerpt and extract every significant physical object, artifact, tool, vehicle, or item mentioned. For each identified asset, extract the following specific attributes: 1. Asset Name: The name or common designator of the object. 2. Look: Physical appearance, colors, materials, markings, texture, or state of wear. 3. Form: Shape, structure, geometry, or overall build (e.g., blade-like, spherical, modular). 4. Size: Absolute dimensions, weight, or relative size compared to standard objects/people. 5. Function: Purpose, practical use, supernatural/technological abilities, or operational mechanism. RULES: Extract ONLY facts explicitly stated or strongly implied by the text. Do not invent details. If an attribute (e.g., size) is not mentioned, set its value to \"Not specified\". Output MUST be valid JSON matching the schema below. OUTPUT FORMAT: { \"assets\": [ { \"name\": \"Object Name\", \"look\": \"Detailed appearance description\", \"form\": \"Shape and physical structural build\", \"size\": \"Dimensions or relative scale\", \"function\": \"Primary purpose and operational capabilities\" } ] }",
     locations:
-      "Extract every LOCATION / ENVIRONMENT: places, biomes, interiors, landscapes, atmospheres. For each: name, LOOK (visual mood, palette, lighting), FORM (spatial layout, shape), SIZE/SCALE, FUNCTION (how it is used or operated). Return a JSON array.",
+      "You are an expert world-building cartographer and location analyst. Analyze the provided text excerpt and extract every distinct place, venue, geography, or environment mentioned. For each identified location, extract the following specific attributes: 1. Location Name: The proper name or descriptive title of the place. 2. Look: Visual aesthetic, lighting, atmosphere, color palette, architectural style, or decorative elements. 3. Form: Spatial layout, architectural geography, structural arrangement, or terrain type (e.g., multi-tiered cavern, narrow corridor grid, open tundra). 4. Size: Physical dimensions, scale, footprint, or boundary limits (e.g., holds 50 people, spans 10 square miles, cramped room). 5. Function: The operational role or purpose of the location (e.g., military outpost, living quarters, religious shrine, trading portal). RULES: Extract ONLY facts explicitly stated or strongly implied by the text. Do not invent details. If an attribute (e.g., size) is not mentioned, set its value to \"Not specified\". Output MUST be valid JSON matching the schema below. OUTPUT FORMAT: { \"locations\": [ { \"name\": \"Location Name\", \"look\": \"Aesthetic, lighting, and visual attributes\", \"form\": \"Layout, structure, and spatial form\", \"size\": \"Scale, area, or capacity\", \"function\": \"Role, purpose, or activities held here\" } ] }",
     buildings:
       "Extract every BUILDING / ARCHITECTURE: edifices, structures, habitats, installations. For each: name, LOOK (architectural style, materials), FORM (structural shape), HEIGHT/SIZE, FUNCTION (purpose, occupancy). Return a JSON array.",
     spacecraft:
@@ -60,6 +60,8 @@ export function parseExtraction(jsonText: string, category: ExtractionCategory):
       ? parsed
       : Array.isArray(parsed?.results)
       ? parsed.results
+      : Array.isArray(parsed?.locations)
+      ? parsed.locations
       : Array.isArray(parsed?.assets)
       ? parsed.assets
       : [parsed];

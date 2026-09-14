@@ -17,7 +17,7 @@ export default function ScriptPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AiResponse | null>(null);
   const [rows, setRows] = useState<ExtractionRow[]>([]);
-  const [activeFilter, setActiveFilter] = useState<keyof ExtractionRow>("");
+  const [activeFilter, setActiveFilter] = useState<string>("");
 
   const handleRun = async () => {
     if (!source) return;

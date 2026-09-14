@@ -72,7 +72,7 @@ async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: 
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: provider === "anthropic" ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini",
+        model: "gpt-4o-mini",
         messages: [{ role: "system", content: "You are a meticulous film-production extraction specialist. Return ONLY valid JSON, nothing else." }, { role: "user", content: prompt }],
         temperature: 0.2,
         stream: false,
@@ -83,7 +83,7 @@ async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: 
     return {
       content: text ?? (res.ok ? "Empty response from provider." : (data as any)?.error?.message),
       engine: provider,
-      model: provider === "anthropic" ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini",
+      model: "gpt-4o-mini",
       elapsedMs: Math.round(performance.now() - start),
     };
   } catch (err) {
@@ -148,4 +148,9 @@ export async function runExtraction(config: EngineConfig, category: ExtractionCa
 
 export async function probeLocalEngine(config: EngineConfig, local: LocalEngineConfig): Promise<{ ok: boolean; status: string; body: string }> {
   return healthCheck(config, local);
+}
+
+// Strip markdown code fences from a raw AI response before display/parsing.
+export function sanitizeAiResponse(text: string): string {
+  return text.replace(/```json\n?|```/gi, "").trim();
 }

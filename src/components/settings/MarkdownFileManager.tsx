@@ -68,7 +68,7 @@ export function MarkdownFileManager({ files, onAdd, onUpdate, onDelete }: Markdo
       try {
         const entries = dir.values() as unknown as AsyncIterable<FileSystemFileHandle | FileSystemDirectoryHandle>;
         for await (const entry of entries) {
-          if (entry.kind === entry.kind.file) {
+          if ((entry.kind as "file" | "directory") === "file") {
             onAdd(await fileFromHandle(entry as FileSystemFileHandle));
           }
         }

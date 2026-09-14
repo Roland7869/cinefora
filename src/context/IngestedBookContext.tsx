@@ -23,7 +23,7 @@ export function IngestedBookProvider({ children }: { children: ReactNode }) {
 
   const clearSource = useCallback(() => {
     setSourceState(null);
-    saveBook({ id: "none", kind: "text", label: "(no active text)", text: "" });
+    saveBook({ text: "", label: "(no active text)" });
   }, []);
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
   Clapperboard,
-  Grid3d,
+  Grid3x3,
   Users,
   Package,
   Map,
@@ -41,7 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
     id: "scene-canvas",
     route: "scene-canvas",
     label: "Scene Canvas",
-    icon: <Grid3d className="h-4 w-4" />,
+    icon: <Grid3x3 className="h-4 w-4" />,
     group: "production",
   },
   {

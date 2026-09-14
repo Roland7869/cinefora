@@ -111,7 +111,7 @@ export function ExtractionTable({ category, rows, filter, activeFilter, onFilter
         {visibleColumns.map((col) => (
           <button
             key={col.key}
-            onClick={() => onFilterChange(activeFilter === col.key ? "" : col.key)}
+            onClick={() => onFilterChange(activeFilter === col.key ? "" : col.key as string)}
             className={cn(
               "shrink-0 rounded-full px-3 py-1 text-[11px] font-medium transition",
               activeFilter === col.key ? "bg-[#6366F1] text-white" : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80",

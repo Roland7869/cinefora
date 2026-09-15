@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { X, FileText, FolderOpen, Upload, Check, Loader2 } from "lucide-react";
+import { X, FolderOpen, Upload, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -11,10 +10,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import {
+  ingestFromDirectoryHandle,
+  isManuscriptFile,
+  sourcesToText,
+} from "@/lib/ingestion";
+import type { IngestedSource } from "@/types";
 
 interface IngestionDialogProps {
   open: boolean;
-  onConfirm: (source: { label: string; text: string }) => void;
+  onConfirm: (source: IngestedSource) => void;
   onClose: () => void;
 }
 
@@ -26,7 +31,7 @@ The station hung like a suspended moon, its hull a lattice of indigo light again
 
 Kael raised her rifle. The weapon was a sleek cylinder of black polymer, humming with stored energy. Beyond the viewport, the colony outpost of New Meridian stretched across the ice plain — a cluster of geodesic domes and angular habitats clinging to the frozen world.`;
 
-function readFileText(file: File): Promise<string> {
+async function readFileText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result ?? ""));
@@ -35,21 +40,42 @@ function readFileText(file: File): Promise<string> {
   });
 }
 
-async function readDirectoryRecursive(dir: FileSystemDirectoryHandle, prefix: string): Promise<string> {
-  let text = "";
-  const iterator = (dir as unknown as { values: () => AsyncIterableIterator<FileSystemEntry> }).values();
-  while (true) {
-    const result = await iterator.next();
-    if (result.done) break;
-    const entry = result.value;
-    if (entry.kind === entry.kind.directory) {
-      text += await readDirectoryRecursive(entry as unknown as FileSystemDirectoryHandle, `${prefix}${dir.name}/`);
-    } else if (entry.kind === entry.kind.file && /\.(md|markdown|txt)$/.test(entry.name)) {
-      const file = await entry.getFile();
-      text += `${file.name}\n${await readFileText(file)}\n\n`;
-    }
+// Load a set of files into a structured IngestedSource with provenance.
+async function loadFiles(files: File[]): Promise<IngestedSource> {
+  const sources: IngestedSource["sources"] = [];
+  const chunks = await Promise.all(
+    files.map(async (file) => {
+      if (!isManuscriptFile(file.name)) return null;
+      const content = await readFileText(file);
+      const relativePath = file.webkitRelativePath ?? file.name;
+      const title = file.name.replace(/\.(md|markdown|txt)$/i, "").trim() || file.name;
+      // Try to extract chapter number from filename (e.g. "Chapter 03.md" -> "3")
+      const chapterMatch = title.match(/chapter\s*(\d+)/i);
+      return {
+        id: `src-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        filename: file.name,
+        relativePath,
+        title,
+        content,
+        chapter: chapterMatch ? chapterMatch[1] : undefined,
+        sourceType: /\.(md|markdown)$/i.test(file.name) ? "markdown" : "txt",
+        metadata: { folder: relativePath.substring(0, relativePath.lastIndexOf("/") || 0), extension: file.name.split(".").pop() ?? "" },
+      };
+    }),
+  );
+  for (const chunk of chunks) if (chunk) sources.push(chunk);
+  const text = sourcesToText(sources);
+  return { text, label: sources.length ? `${sources.length} file(s)` : "", sources };
+}
+
+// Load a directory handle (showDirectoryPicker) into a structured IngestedSource.
+async function loadDirectory(handle: FileSystemDirectoryHandle): Promise<IngestedSource> {
+  const result = await ingestFromDirectoryHandle(handle);
+  if (result.error && result.sources.length === 0) {
+    throw new Error(result.error);
   }
-  return text;
+  const label = result.sources.length ? `${result.sources.length} file(s)` : "";
+  return { text: sourcesToText(result.sources), label, sources: result.sources };
 }
 
 export function IngestionDialog({ open, onConfirm, onClose }: IngestionDialogProps) {
@@ -58,6 +84,8 @@ export function IngestionDialog({ open, onConfirm, onClose }: IngestionDialogPro
   const [label, setLabel] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fileCount, setFileCount] = useState(0);
+  const [folderCount, setFolderCount] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -66,6 +94,8 @@ export function IngestionDialog({ open, onConfirm, onClose }: IngestionDialogPro
       setText("");
       setLabel("");
       setError("");
+      setFileCount(0);
+      setFolderCount(0);
     }
   }, [open]);
 
@@ -75,11 +105,11 @@ export function IngestionDialog({ open, onConfirm, onClose }: IngestionDialogPro
     if (picked.length === 0) return;
     setLoading(true);
     try {
-      const contents = await Promise.all(
-        picked.map(async (file) => ({ name: file.name, text: await readFileText(file) })),
-      );
-      setText(contents.map((c) => c.text).join("\n\n"));
-      setLabel(picked.map((c) => c.name).join(", "));
+      const source = await loadFiles(picked);
+      setText(source.text);
+      setLabel(source.label);
+      setFileCount(source.sources.length);
+      setLastSources(source.sources);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to read files");
     } finally {
@@ -87,13 +117,41 @@ export function IngestionDialog({ open, onConfirm, onClose }: IngestionDialogPro
     }
   };
 
+  const openFolderPicker = async () => {
+    setError("");
+    setLoading(true);
+    // Prefer the native directory picker; fall back to webkitdirectory.
+    if (typeof window !== "undefined" && "showDirectoryPicker" in window) {
+      try {
+        const handle = await window.showDirectoryPicker({ label: "Select Obsidian vault or folder" });
+        const source = await loadDirectory(handle);
+        setText(source.text);
+        setLabel(source.label);
+        setFolderCount(source.sources.length);
+        setLastSources(source.sources);
+      } catch (err) {
+        // User cancelled (AbortError) or unsupported — fall back to FileList.
+        if (err instanceof Error && err.name === "AbortError") {
+          setError("");
+        } else {
+          setError(err instanceof Error ? err.message : "Could not open folder");
+        }
+      }
+    }
+    // Always surface the FileList fallback so the feature works everywhere.
+    fileRef.current?.click();
+    setLoading(false);
+  };
+
   const confirm = () => {
     if (!text.trim()) {
       setError("Nothing to ingest — paste or attach a file first.");
       return;
     }
-    onConfirm({ label: label.trim() || "Ingested book section", text: text.trim() });
+    onConfirm({ text: text.trim(), label: label.trim() || "Ingested book section", sources: lastSources });
   };
+
+  const [lastSources, setLastSources] = useState<IngestedSource["sources"]>([]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -101,8 +159,8 @@ export function IngestionDialog({ open, onConfirm, onClose }: IngestionDialogPro
         <DialogHeader>
           <DialogTitle className="text-lg">Connect your book text</DialogTitle>
           <DialogDescription>
-          Feed a raw section of your manuscript to every stage of the pipeline.
-        </DialogDescription>
+            Feed a raw section of your manuscript to every stage of the pipeline.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex gap-1 p-1 pt-4">
           {(["paste", "file", "folder"] as const).map((m) => (
@@ -141,35 +199,29 @@ export function IngestionDialog({ open, onConfirm, onClose }: IngestionDialogPro
         {mode === "folder" && (
           <div className="flex flex-col gap-3">
             <p className="text-xs text-white/50">
-              Browse a local Obsidian Vault or folder. Only <code className="rounded bg-white/10 px-1">.md</code> and <code className="rounded bg-white/10 px-1">.txt</code> files are ingested, recursively.
+              Browse a local Obsidian Vault or folder. Only <code className="rounded bg-white/10 px-1">.md</code> and <code className="rounded bg-white/10 px-1">.txt</code> files are ingested, recursively. <code className="rounded bg-white/10 px-1">.obsidian/</code> metadata is ignored.
             </p>
-            <Button onClick={() => fileRef.current?.click()} className="h-11">
+            <Button onClick={openFolderPicker} className="h-11" disabled={loading}>
               <FolderOpen className="mr-2 h-4 w-4" /> Select folder
             </Button>
             <input
               ref={fileRef}
               type="file"
               multiple
+              webkitdirectory
+              directory
               className="hidden"
-              onChange={async (e) => {
-                const target = e.target as HTMLInputElement & { directory?: boolean };
-                const files = target.files;
-                if (files && files.length > 0) {
-                  const entry = (files[0] as unknown as { handle: FileSystemFileHandle }).handle;
-                  try {
-                    setLoading(true);
-                    const rootHandle = entry as unknown as FileSystemDirectoryHandle;
-                    const text = await readDirectoryRecursive(rootHandle, "");
-                    setText(text.trim());
-                    setLabel(files[0].name);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : "Could not read folder");
-                  } finally {
-                    setLoading(false);
-                  }
-                }
+              onChange={(e) => {
+                const target = e.target as HTMLInputElement & { files?: FileList };
+                if (target.files) onPickFiles(target);
+                else setLoading(false);
               }}
             />
+            {folderCount > 0 && (
+              <div className="rounded-md border border-white/10 bg-black/30 p-2.5 font-mono text-[11px] text-white/70 leading-relaxed">
+                {folderCount} {folderCount === 1 ? "file" : "files"} ingested · {text.length.toLocaleString()} characters
+              </div>
+            )}
             {loading && <div className="flex items-center gap-2 text-xs text-white/60"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading folder…</div>}
           </div>
         )}

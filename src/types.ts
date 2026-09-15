@@ -45,9 +45,54 @@ export interface MarkdownFile {
   updatedAt: string;
 }
 
-// Structured extraction output. All extraction pages reduce ingested text into
-// rows of this shape so they can render filterable tables + JSON export.
-export interface ExtractionRow {
+// A single ingested unit retained with provenance so that every extracted
+// fact can be traced back to the source it came from.
+export interface SourceEntry {
+  id: string;
+  filename: string;
+  relativePath: string;
+  title: string;
+  content: string;
+  chapter?: string;
+  section?: string;
+  sourceType: "markdown" | "txt" | "manual";
+  metadata: Record<string, string>;
+}
+
+// An ingested book section. `sources` carries provenance for files/folders;
+// `text` is the concatenated content used to drive AI extraction.
+export interface IngestedSource {
+  text: string;
+  label?: string;
+  sources?: SourceEntry[];
+}
+
+// Response from a live AI engine.
+export interface AiResponse {
+  content: string;
+  engine: string;
+  model: string;
+  elapsedMs: number;
+  error?: string;
+}
+
+// How confident the app is that an extracted fact is established. AI output is
+// never treated as automatic truth — it starts as "inferred" until a human
+// approves it as canonical project data.
+export type EvidenceStatus = "confirmed" | "inferred" | "unknown";
+
+export interface EntityEvidence {
+  status: EvidenceStatus;
+  // Where this fact was taken from, when known.
+  sourceId?: string;
+  sourceRelativePath?: string;
+  sourceTitle?: string;
+  chapter?: string;
+}
+
+// A reviewable extracted entity. Created by AI as "inferred"; a human can edit
+// it and mark it "confirmed" to promote it to canonical project data.
+export interface ReviewedEntity {
   id: string;
   name: string;
   look?: string;
@@ -57,34 +102,108 @@ export interface ExtractionRow {
   role?: string;
   traits?: string;
   details?: string;
-}
-
-export type ExtractionCategory =
-  | "characters"
-  | "assets"
-  | "locations"
-  | "buildings"
-  | "spacecraft";
-
-export interface PromptLibraryDoc {
-  id: string;
-  title: string;
-  category: "Video Prompt Engines" | "Image Prompt Engines" | "Camera Control" | "Lighting & Physics";
-  content: string;
+  status: EvidenceStatus;
+  notes?: string;
+  evidence: EntityEvidence;
+  createdAt: string;
   updatedAt: string;
 }
 
-// The active ingested book section available to every page.
-export type IngestedSource = {
-  text: string;
-  label?: string;
-};
+export interface ScriptBeat {
+  id: string;
+  act: string;
+  sceneHeading: string;
+  location: string;
+  timeOfDay: string;
+  beatPurpose: string;
+  speakingCharacters: string[];
+  action: string;
+  dialogue: { character: string; line: string }[];
+  sourceId?: string;
+  sourceRelativePath?: string;
+  status: "confirmed" | "inferred" | "unknown";
+  evidence: {
+    sourceId?: string;
+    sourceRelativePath?: string;
+    sourceTitle?: string;
+    chapter?: string;
+  };
+  // Beat-to-beat continuity
+  previousBeatId?: string;
+  continuityState?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
-// Response from a live AI engine.
-export interface AiResponse {
+export interface StoryboardBeat {
+  id: string;
+  act: string;
+  sceneHeading: string;
+  location: string;
+  timeOfDay: string;
+  primaryFocus: string;
+  shotScale: string;
+  cameraMovement: string;
+  panels: string[];
+  lighting: string;
+  movement: string;
+  sourceId?: string;
+  sourceRelativePath?: string;
+  status: "confirmed" | "inferred" | "unknown";
+  evidence: {
+    sourceId?: string;
+    sourceRelativePath?: string;
+    sourceTitle?: string;
+    chapter?: string;
+  };
+  // Beat-to-beat continuity
+  previousBeatId?: string;
+  continuityState?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Scene canvas actor for spatial blocking.
+export interface CanvasActor {
+  id: string;
+  name: string;
+  type: "character" | "object";
+  x: number;
+  y: number;
+  color: string;
+}
+
+// Persisted scene canvas state.
+export interface SceneCanvas {
+  id: string;
+  name: string;
+  actors: CanvasActor[];
+  generatedOutput: string;
+  seedSourceId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Extraction types
+export type ExtractionCategory = "characters" | "assets" | "locations" | "buildings" | "spacecraft";
+
+export interface ExtractionRow {
+  id?: string;
+  name?: string;
+  look?: string;
+  form?: string;
+  size?: string;
+  function?: string;
+  role?: string;
+  traits?: string;
+  details?: string;
+}
+
+// Prompt library
+export interface PromptLibraryDoc {
+  id: string;
+  title: string;
+  category: string;
   content: string;
-  engine: string;
-  model: string;
-  elapsedMs: number;
-  error?: string;
+  updatedAt: string;
 }

@@ -2,6 +2,9 @@ import { useState } from "react";
 import { Sparkles, ArrowRight, BookOpen, Zap, Shield, Film } from "lucide-react";
 import { IngestionDialog } from "@/components/ingestion/IngestionDialog";
 import { Button } from "@/components/ui/button";
+import { useBook } from "@/context/IngestedBookContext";
+import { useProject } from "@/context/ProjectContext";
+import type { SourceEntry } from "@/types";
 
 const FEATURES = [
   { icon: <Zap className="h-5 w-5" />, title: "Live AI Engines", description: "Cloud or local LLMs — OpenAI, Claude, Gemini, and LM Studio, Ollama, Unsloth, Llama.cpp." },
@@ -14,6 +17,16 @@ const BG_IMAGE = "https://images.unsplash.com/photo-1451187580459-43490279c0fa?a
 
 export default function IndexPage() {
   const [ingestionOpen, setIngestionOpen] = useState(false);
+  const { setSource } = useBook();
+  const { addSources } = useProject();
+
+  const handleIngestConfirm = (source: { text: string; label?: string; sources?: SourceEntry[] }) => {
+    setSource(source);
+    if (source.sources && source.sources.length > 0) {
+      addSources(source.sources);
+    }
+    setIngestionOpen(false);
+  };
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6">
@@ -22,7 +35,7 @@ export default function IndexPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a12]/70 via-[#0a0a12]/50 to-[#0a0a12]" />
       </div>
 
-      <IngestionDialog open={ingestionOpen} onClose={() => setIngestionOpen(false)} onConfirm={() => setIngestionOpen(false)} />
+      <IngestionDialog open={ingestionOpen} onClose={() => setIngestionOpen(false)} onConfirm={handleIngestConfirm} />
 
       <nav className="mb-12 flex flex-wrap items-center justify-center gap-2">
         {FEATURES.map((f) => (

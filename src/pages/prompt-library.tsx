@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { BookOpen, Search, Plus, Trash2, X, Sparkles } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { BookOpen, Search, Plus, Trash2, X, Sparkles, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PromptLibraryCard } from "@/components/library/PromptLibraryCard";
@@ -63,6 +63,8 @@ export default function PromptLibraryPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [importCount, setImportCount] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -97,6 +99,43 @@ export default function PromptLibraryPage() {
     setNewTitle("");
     setNewContent("");
     setShowNew(false);
+  };
+
+  const handleExportAll = () => {
+    const data = JSON.stringify(docs, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cinefora-prompt-library-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const imported: PromptLibraryDoc[] = JSON.parse(reader.result as string);
+        if (!Array.isArray(imported)) return;
+        let count = 0;
+        for (const doc of imported) {
+          if (doc.id && doc.title && doc.content) {
+            persist({ ...doc, updatedAt: new Date().toISOString() });
+            count++;
+          }
+        }
+        setImportCount(count);
+        setTimeout(() => setImportCount(0), 3000);
+      } catch {
+        // Invalid JSON — ignore silently
+      }
+    };
+    reader.readAsText(file);
+    // Reset the input so the same file can be re-imported.
+    e.target.value = "";
   };
 
   return (
@@ -139,11 +178,30 @@ export default function PromptLibraryPage() {
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-xs text-white/40">{filtered.length} prompt documents</p>
-        <Button size="sm" onClick={() => setShowNew((v) => !v)} className="gap-2">
-          <Plus className="h-4 w-4" /> New prompt
-        </Button>
+        <p className="text-xs text-white/40">{filtered.length} prompt document(s)</p>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            className="hidden"
+          />
+          <Button size="sm" variant="outline" className="border-white/10 gap-2" onClick={handleExportAll}>
+            <Download className="h-4 w-4" /> Export all
+          </Button>
+          <Button size="sm" variant="outline" className="border-white/10 gap-2" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-4 w-4" /> Import
+          </Button>
+          <Button size="sm" onClick={() => setShowNew((v) => !v)} className="gap-2">
+            <Plus className="h-4 w-4" /> New prompt
+          </Button>
+        </div>
       </div>
+
+      {importCount > 0 && (
+        <p className="text-xs text-emerald-400">{importCount} prompt(s) imported successfully.</p>
+      )}
 
       {showNew && (
         <div className="rounded-xl border border-[#6366F1]/30 bg-[#6366F1]/5 p-4">

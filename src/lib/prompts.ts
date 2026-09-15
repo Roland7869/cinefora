@@ -1,7 +1,7 @@
 // Prompt builders that combine the active ingested book section with a
 // category-specific instruction and ask the model to return structured JSON.
 
-import type { ExtractionCategory, ExtractionRow, IngestedSource } from "@/types";
+import type { ExtractionCategory, ExtractionRow, IngestedSource, ScriptBeat, StoryboardBeat } from "@/types";
 
 function activeText(source: IngestedSource | null): string {
   if (!source) return "";
@@ -32,14 +32,31 @@ function build(category: ExtractionCategory, source: IngestedSource | null): str
   return `${system()}\n\nProduce the extraction for the following passage.\n\nINSTRUCTION:\n${instruction[category]}\n\nPASSAGE:\n"""${text}"""\n\nReturn ONLY the JSON array.`;
 }
 
-export function scriptPrompt(source: IngestedSource | null): string {
+export function scriptPrompt(source: IngestedSource | null, previousBeat?: ScriptBeat | null): string {
   const text = activeText(source);
+  const continuityBlock = previousBeat
+    ? `\n\nCONTINUITY CONTEXT — The immediately preceding beat was:\n${JSON.stringify({
+        id: previousBeat.id,
+        sceneHeading: previousBeat.sceneHeading,
+        location: previousBeat.location,
+        action: previousBeat.action,
+        speakingCharacters: previousBeat.speakingCharacters,
+      }, null, 2)}\n\nYour new beats MUST begin from the state established by the previous beat. Do NOT repeat the previous beat's action. Continue the action forward logically.`
+    : "";
+
   return `You are a Screenwriter and Dialogue Specialist. Transform the provided prose chapter directly into clean, formatted screenplay scripts divided into 15-second visual beats (minimum 10 beats per chapter). Isolate spoken dialogue and voiceover attributed strictly to speaking characters per beat. Character extraction, visual image prompts, and storyboard generation are handled externally in downstream modules.
 
 PACING & BEAT RULES:
 - Minimum Beat Count: Every chapter MUST be divided into a minimum of 10 visual beats. Longer or dense chapters scale up dynamically (12, 15, 20+ beats) based on narrative volume.
 - Beat Duration: Each beat represents exactly 15 seconds of scene runtime.
 - Audio & Dialogue Timing: All spoken lines (dialogue or voiceover) within a beat must complete by 00:11-00:12, leaving 3-4 seconds of quiet scene linger for visual impact before transitioning to the next beat.
+
+CONTINUITY RULES:
+- Each beat MUST begin from the state established by the immediately preceding beat.
+- Do NOT reset character positions, actions, or emotional states between beats unless the passage explicitly describes a change.
+- Track character positions, movements, and emotional arcs across beats.
+- If a character exits the frame in beat N, they should not appear in beat N+1 unless the passage describes their return.
+- Environmental state (lighting, weather, architecture) should persist across consecutive beats unless explicitly changed.${continuityBlock}
 
 BEAT BREAKDOWN OUTPUT FORMAT (Per Beat)
 Every beat must be rendered using the structured XML metadata wrapper + formatted screenplay text below:
@@ -56,8 +73,21 @@ PASSAGE:
 Produce your output as a JSON array. Each element represents one beat and contains: id, act, sceneHeading, location, time_of_day, beat_purpose, speaking_characters[], action (the screenplay action lines), and dialogue[] (the screenplay dialogue lines, each attributed to its speaking character). Return ONLY the JSON array.`;
 }
 
-export function storyboardPrompt(source: IngestedSource | null): string {
+export function storyboardPrompt(source: IngestedSource | null, previousBeat?: StoryboardBeat | null): string {
   const text = activeText(source);
+  const continuityBlock = previousBeat
+    ? `\n\nCONTINUITY CONTEXT — The immediately preceding storyboard beat was:\n${JSON.stringify({
+        id: previousBeat.id,
+        sceneHeading: previousBeat.sceneHeading,
+        location: previousBeat.location,
+        primaryFocus: previousBeat.primaryFocus,
+        shotScale: previousBeat.shotScale,
+        cameraMovement: previousBeat.cameraMovement,
+        lighting: previousBeat.lighting,
+        movement: previousBeat.movement,
+      }, null, 2)}\n\nYour new shots MUST begin from the camera position, character positions, and environmental state established by the previous shot. Do NOT reset camera or character positions between beats.`
+    : "";
+
   return `You are a Professional Film Director, Storyboard Artist, and AI Cinematography Specialist. Transform the provided prose chapter directly into a dedicated, production-ready storyboard divided into 15-second visual beats (minimum 10 beats per chapter). Isolate the camera progression, 4-panel visual roadmap, atmospheric lighting, and physical movement per beat. Dialogue and character sheet extractions are handled in their respective dedicated files.
 
 PACING & STORYBOARD BEAT RULES:
@@ -68,6 +98,13 @@ PACING & STORYBOARD BEAT RULES:
   * Panel 2 (00:05): Movement development, camera tracking/dolly, lighting shifts.
   * Panel 3 (00:10): Climax/peak emotional or visual action beat.
   * Panel 4 (00:15): Final frame state inherited by the next beat.
+
+CONTINUITY RULES:
+- Each shot MUST begin from the camera position, character positions, and environmental state established by the previous shot.
+- Camera movement should flow continuously — if beat N ends with a dolly-in, beat N+1 should begin from that closer position.
+- Character positions should persist across beats unless the passage explicitly describes movement.
+- Panel 4 of beat N should visually match Panel 1 of beat N+1 (the handoff frame).
+- Lighting state should persist across consecutive beats unless explicitly changed.${continuityBlock}
 
 STORYBOARD OUTPUT FORMAT (Per Beat)
 Every beat must be rendered using the structured XML metadata wrapper + formatted screenplay text below:

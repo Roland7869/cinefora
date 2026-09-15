@@ -8,6 +8,7 @@ interface IngestedBookContextValue {
   setSource: (source: IngestedSource) => void;
   clearSource: () => void;
   isPersisted: boolean;
+  sourceCount: number;
 }
 
 const IngestedBookContext = createContext<IngestedBookContextValue | undefined>(undefined);
@@ -23,7 +24,7 @@ export function IngestedBookProvider({ children }: { children: ReactNode }) {
 
   const clearSource = useCallback(() => {
     setSourceState(null);
-    saveBook({ text: "" });
+    saveBook({ text: "", sources: [] });
   }, []);
 
   useEffect(() => {
@@ -33,7 +34,6 @@ export function IngestedBookProvider({ children }: { children: ReactNode }) {
       setSourceState(initial ?? source);
       setIsPersisted(true);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -44,8 +44,9 @@ export function IngestedBookProvider({ children }: { children: ReactNode }) {
     () => ({ source, hasSource: Boolean(source?.text), setSource, clearSource, isPersisted: isPersisted && Boolean(source) }),
     [source, setSource, clearSource, isPersisted],
   );
+  const sourceCount = useMemo(() => source?.sources?.length ?? 0, [source]);
 
-  return <IngestedBookContext.Provider value={value}>{children}</IngestedBookContext.Provider>;
+  return <IngestedBookContext.Provider value={{ ...value, sourceCount }}>{children}</IngestedBookContext.Provider>;
 }
 
 export function useBook(): IngestedBookContextValue {

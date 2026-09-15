@@ -10,10 +10,12 @@ import type { AppSettings, IngestedSource, MarkdownFile, PromptLibraryDoc } from
 import { decryptSettings, encryptSettings } from "@/lib/crypto";
 
 export const DB_NAME = "cinefora";
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 export const STORE_BOOK = "book";
 export const STORE_MARKDOWN = "markdown";
 export const STORE_PROMPTS = "promptLibrary";
+export const STORE_PROJECT = "project";
+export const STORE_BACKUPS = "backups";
 
 function getSettingsKey() {
   return `cinefora.settings.v1`;
@@ -37,7 +39,12 @@ function writeJSON<T>(key: string, value: T): void {
 export async function loadSettings(): Promise<AppSettings> {
   const raw = readJSON(getSettingsKey(), null);
   if (!raw) return defaultSettings();
-  return (await decryptSettings(raw as string)) as AppSettings;
+  const loaded = (await decryptSettings(raw as string)) as AppSettings;
+  // Ensure local engines array is always populated (corruption or migration).
+  if (!loaded.engines.local || loaded.engines.local.length === 0) {
+    loaded.engines.local = defaultSettings().engines.local;
+  }
+  return loaded;
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
@@ -60,7 +67,7 @@ export function defaultSettings(): AppSettings {
 }
 
 // --- IndexedDB sharded store -----------------------------------------------
-function openDB(): Promise<IDBDatabase> {
+export function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
@@ -68,6 +75,8 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_BOOK)) db.createObjectStore(STORE_BOOK, { keyPath: "id" });
       if (!db.objectStoreNames.contains(STORE_MARKDOWN)) db.createObjectStore(STORE_MARKDOWN, { keyPath: "id" });
       if (!db.objectStoreNames.contains(STORE_PROMPTS)) db.createObjectStore(STORE_PROMPTS, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(STORE_PROJECT)) db.createObjectStore(STORE_PROJECT, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(STORE_BACKUPS)) db.createObjectStore(STORE_BACKUPS, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);

@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Film } from "lucide-react";
-import { PageHeader, RunExtractionButton } from "@/components/layout/PageHeader";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ExtractionRunner } from "@/components/extraction/ExtractionRunner";
 import { ExtractionTable } from "@/components/extraction/ExtractionTable";
 import { useBook } from "@/context/IngestedBookContext";
 import { useSettings } from "@/context/AppSettingsContext";
+import { useProject } from "@/context/ProjectContext";
 import { storyboardPrompt } from "@/lib/prompts";
 import { runExtraction } from "@/lib/ai";
+import { parseStoryboardBeats } from "@/lib/entities";
 import type { AiResponse, ExtractionCategory, ExtractionRow } from "@/types";
 
 const CATEGORY: ExtractionCategory = "characters";
@@ -14,32 +16,58 @@ const CATEGORY: ExtractionCategory = "characters";
 export default function StoryboardPage() {
   const { source } = useBook();
   const { settings } = useSettings();
+  const { project, addStoryboards } = useProject();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AiResponse | null>(null);
   const [rows, setRows] = useState<ExtractionRow[]>([]);
   const [activeFilter, setActiveFilter] = useState<string>("");
+  const [savedCount, setSavedCount] = useState(0);
 
   const handleRun = async () => {
     if (!source) return;
     setLoading(true);
     setResult(null);
     try {
-      const res = await runExtraction(settings.engines, CATEGORY, storyboardPrompt(source));
+      const lastBeat = project?.storyboards?.length ? project.storyboards[project.storyboards.length - 1] : null;
+      const res = await runExtraction(settings.engines, CATEGORY, storyboardPrompt(source, lastBeat));
       setResult(res);
-      setRows(parseStoryboard(res.content));
+      const parsed = parseStoryboardBeats(res.content, source);
+      if (parsed.length) {
+        const linked = parsed.map((b, i) => ({
+          ...b,
+          previousBeatId: i === 0 ? lastBeat?.id : parsed[i - 1].id,
+          continuityState: i === 0 && lastBeat
+            ? `Shot follows from ${lastBeat.sceneHeading} — ${lastBeat.shotScale} → ${b.shotScale}`
+            : i > 0
+              ? `Shot follows from ${parsed[i - 1].sceneHeading} — ${parsed[i - 1].shotScale} → ${b.shotScale}`
+              : undefined,
+        }));
+        addStoryboards(linked);
+        setRows(parsed.map((b) => ({
+          id: b.id,
+          name: b.primaryFocus,
+          look: "",
+          form: "",
+          size: "",
+          function: "",
+          role: "",
+          traits: "",
+          details: JSON.stringify({
+            act: b.act,
+            location: b.location,
+            time_of_day: b.timeOfDay,
+            shot_scale: b.shotScale,
+            camera_movement: b.cameraMovement,
+            panels: b.panels,
+            lighting: b.lighting,
+            movement: b.movement,
+          }),
+        })));
+        setSavedCount(linked.length);
+      }
     } finally {
       setLoading(false);
     }
-  };
-
-  const exportJson = (r: ExtractionRow[]) => {
-    const blob = new Blob([JSON.stringify(r, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "storyboard-shots.json";
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -52,11 +80,25 @@ export default function StoryboardPage() {
         result={result}
         rows={rows}
         onRun={handleRun}
-        onExport={exportJson}
+        onExport={(r) => {
+          const blob = new Blob([JSON.stringify(r, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "storyboard-shots.json";
+          a.click();
+          URL.revokeObjectURL(url);
+        }}
       />
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-5">
         <h3 className="mb-4 text-sm font-semibold text-white/80">Shot List</h3>
+        {project?.storyboards?.length ? (
+          <p className="text-xs text-white/40 mb-3">{project.storyboards.length} shot(s) in project. Running extraction enforces beat-to-beat continuity.</p>
+        ) : null}
+        {savedCount > 0 && (
+          <p className="text-xs text-emerald-400 mb-3">{savedCount} shot(s) saved to project with continuity links.</p>
+        )}
         <ExtractionTable
           category={CATEGORY}
           rows={rows}
@@ -67,35 +109,4 @@ export default function StoryboardPage() {
       </div>
     </div>
   );
-}
-
-function parseStoryboard(text: string): ExtractionRow[] {
-  const cleaned = text.replace(/```json\n?|```/gi, "").trim();
-  try {
-    const parsed = JSON.parse(cleaned);
-    const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.shots) ? parsed.shots : [parsed];
-    return arr.map((item: Record<string, unknown>, i: number) => ({
-      id: String(item.id ?? `shot-${i + 1}`),
-      name: String(item.primary_focus ?? item.subject ?? item.sceneHeading ?? `Shot ${i + 1}`),
-      look: "",
-      form: "",
-      size: "",
-      function: "",
-      role: "",
-      traits: "",
-      details: JSON.stringify({
-        act: item.act,
-        location: item.location,
-        time_of_day: item.time_of_day,
-        primary_focus: item.primary_focus,
-        shot_scale: item.shot_scale,
-        camera_movement: item.camera_movement,
-        panels: item.panels,
-        lighting: item.lighting,
-        movement: item.movement,
-      }),
-    }));
-  } catch {
-    return [];
-  }
 }

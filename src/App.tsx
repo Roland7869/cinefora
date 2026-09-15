@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ProjectProvider } from "@/context/ProjectContext";
 import { AppSettingsProvider } from "@/context/AppSettingsContext";
 import { IngestedBookProvider } from "@/context/IngestedBookContext";
 import { Layout } from "@/components/layout/Layout";
@@ -44,15 +45,17 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <AppSettingsProvider>
-          <IngestedBookProvider>
-            <BrowserRouter>
-              <Layout>
-                <INNER />
-              </Layout>
-            </BrowserRouter>
-          </IngestedBookProvider>
-        </AppSettingsProvider>
+        <ProjectProvider>
+          <AppSettingsProvider>
+            <IngestedBookProvider>
+              <BrowserRouter>
+                <Layout>
+                  <INNER />
+                </Layout>
+              </BrowserRouter>
+            </IngestedBookProvider>
+          </AppSettingsProvider>
+        </ProjectProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

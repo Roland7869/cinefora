@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { probeLocalEngine } from "@/lib/ai";
-import type { CloudProvider, EngineConfig } from "@/types";
+import { useSettings } from "@/context/AppSettingsContext";
+import type { CloudProvider, EngineConfig as EngineConfigType } from "@/types";
 
 const CLOUD_PROVIDERS: { value: CloudProvider; label: string }[] = [
   { value: "openai", label: "OpenAI" },
@@ -17,7 +18,7 @@ const CLOUD_PROVIDERS: { value: CloudProvider; label: string }[] = [
   { value: "together", label: "Together AI" },
 ];
 
-const LOCAL_ENGINES: { value: EngineConfig["local"][0]["kind"]; label: string; defaultUrl: string; defaultModel: string }[] = [
+const LOCAL_ENGINES: { value: EngineConfigType["local"][0]["kind"]; label: string; defaultUrl: string; defaultModel: string }[] = [
   { value: "lm-studio", label: "LM Studio", defaultUrl: "http://localhost:1234", defaultModel: "local-model" },
   { value: "ollama", label: "Ollama", defaultUrl: "http://localhost:11434", defaultModel: "llama3.2" },
   { value: "unsloth", label: "Unsloth", defaultUrl: "http://localhost:8000", defaultModel: "unsloth-model" },
@@ -34,24 +35,50 @@ const MODEL_HINTS: Record<CloudProvider, string> = {
   together: "e.g. meta-llama/Llama-3.3-70B-Instruct",
 };
 
-async function probe(config: EngineConfig, local: EngineConfig["local"][0]): Promise<{ ok: boolean; status: string }> {
-  const res = await probeLocalEngine(config, local);
-  return { ok: res.ok, status: res.status };
-}
-
 export function EngineConfig() {
-  const [activeProvider, setActiveProvider] = useState<CloudProvider>("openai");
-  const [cloudKey, setCloudKey] = useState("");
+  const { settings, updateEngines } = useSettings();
+  const [activeProvider, setActiveProvider] = useState<CloudProvider>(settings.engines.cloud.provider);
+  const [cloudKey, setCloudKey] = useState(settings.engines.cloud.apiKey);
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [probeResult, setProbeResult] = useState<Record<string, { ok: boolean; status: string }>>({});
+  const [localUrls, setLocalUrls] = useState<Record<string, string>>(
+    Object.fromEntries(settings.engines.local.map((e) => [e.kind, e.baseUrl]))
+  );
+  const [localModels, setLocalModels] = useState<Record<string, string>>(
+    Object.fromEntries(settings.engines.local.map((e) => [e.kind, e.model]))
+  );
 
-  const config: EngineConfig = { cloud: { provider: activeProvider, apiKey: cloudKey }, local: [] };
+  const handleProviderChange = (provider: CloudProvider) => {
+    setActiveProvider(provider);
+    updateEngines({ ...settings.engines, cloud: { provider, apiKey: cloudKey } });
+  };
 
-  const testLocal = async (local: EngineConfig["local"][0]) => {
-    setTesting((t) => ({ ...t, [local.kind]: true }));
-    const result = await probe(config, local);
-    setProbeResult((p) => ({ ...p, [local.kind]: result }));
-    setTesting((t) => ({ ...t, [local.kind]: false }));
+  const handleKeyChange = (key: string) => {
+    setCloudKey(key);
+    updateEngines({ ...settings.engines, cloud: { provider: activeProvider, apiKey: key } });
+  };
+
+  const testLocal = async (kind: EngineConfigType["local"][0]["kind"]) => {
+    const url = localUrls[kind] || LOCAL_ENGINES.find((e) => e.value === kind)!.defaultUrl;
+    const model = localModels[kind] || LOCAL_ENGINES.find((e) => e.value === kind)!.defaultModel;
+    const local = { kind, baseUrl: url, model, healthPath: "/v1/models" };
+    setTesting((t) => ({ ...t, [kind]: true }));
+    const testConfig: EngineConfigType = { cloud: { provider: activeProvider, apiKey: cloudKey }, local: [local] };
+    const res = await probeLocalEngine(testConfig, local);
+    setProbeResult((p) => ({ ...p, [kind]: { ok: res.ok, status: res.status } }));
+    setTesting((t) => ({ ...t, [kind]: false }));
+  };
+
+  const handleLocalUrlChange = (kind: string, url: string) => {
+    setLocalUrls((prev) => ({ ...prev, [kind]: url }));
+    const nextLocal = settings.engines.local.map((e) => (e.kind === kind ? { ...e, baseUrl: url } : e));
+    updateEngines({ ...settings.engines, local: nextLocal });
+  };
+
+  const handleLocalModelChange = (kind: string, model: string) => {
+    setLocalModels((prev) => ({ ...prev, [kind]: model }));
+    const nextLocal = settings.engines.local.map((e) => (e.kind === kind ? { ...e, model } : e));
+    updateEngines({ ...settings.engines, local: nextLocal });
   };
 
   return (
@@ -64,7 +91,7 @@ export function EngineConfig() {
 
         <div className="mb-5">
           <Label className="text-sm text-white/70">Active provider</Label>
-          <Select value={activeProvider} onValueChange={(v: CloudProvider) => setActiveProvider(v)}>
+          <Select value={activeProvider} onValueChange={handleProviderChange}>
             <SelectTrigger className="mt-2 max-w-md border-white/10 bg-white/5">
               <SelectValue className="text-white" />
             </SelectTrigger>
@@ -81,7 +108,7 @@ export function EngineConfig() {
         <ApiKeyInput
           label={`${activeProvider.toUpperCase()} API Key`}
           value={cloudKey}
-          onChange={setCloudKey}
+          onChange={handleKeyChange}
           placeholder="sk-… or your provider key"
           hint={`Model: ${MODEL_HINTS[activeProvider]}. Keys are stored locally in this browser only.`}
         />
@@ -98,7 +125,6 @@ export function EngineConfig() {
 
         <div className="space-y-4">
           {LOCAL_ENGINES.map((engine) => {
-            const local = { kind: engine.value, baseUrl: "", model: "" } as EngineConfig["local"][0];
             const result = probeResult[engine.value];
             return (
               <div key={engine.value} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
@@ -107,7 +133,12 @@ export function EngineConfig() {
                     <Zap className="h-4 w-4 text-[#6366F1]" />
                     <span className="font-medium text-white">{engine.label}</span>
                   </div>
-                  <Button size="sm" variant={result?.ok ? "default" : "outline"} onClick={() => testLocal(local)} disabled={testing[engine.value]}>
+                  <Button
+                    size="sm"
+                    variant={result?.ok ? "default" : "outline"}
+                    onClick={() => testLocal(engine.value)}
+                    disabled={testing[engine.value]}
+                  >
                     {testing[engine.value] ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : result?.ok ? <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-emerald-400" /> : <XCircle className="h-3.5 w-3.5 mr-2 text-white/40" />}
                     {testing[engine.value] ? "Testing…" : result?.ok ? "Connected" : "Test Connection"}
                   </Button>
@@ -119,8 +150,8 @@ export function EngineConfig() {
                     <input
                       className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-white focus:border-[#6366F1] focus:outline-none"
                       placeholder={engine.defaultUrl}
-                      value={local.baseUrl}
-                      onChange={(e) => local.baseUrl = e.target.value}
+                      value={localUrls[engine.value] ?? engine.defaultUrl}
+                      onChange={(e) => handleLocalUrlChange(engine.value, e.target.value)}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -128,8 +159,8 @@ export function EngineConfig() {
                     <input
                       className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-white focus:border-[#6366F1] focus:outline-none"
                       placeholder={engine.defaultModel}
-                      value={local.model}
-                      onChange={(e) => local.model = e.target.value}
+                      value={localModels[engine.value] ?? engine.defaultModel}
+                      onChange={(e) => handleLocalModelChange(engine.value, e.target.value)}
                     />
                   </div>
                 </div>

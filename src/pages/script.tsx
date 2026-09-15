@@ -1,45 +1,50 @@
 import { useState } from "react";
 import { PenLine } from "lucide-react";
-import { PageHeader, RunExtractionButton } from "@/components/layout/PageHeader";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ExtractionRunner } from "@/components/extraction/ExtractionRunner";
-import { ExtractionTable } from "@/components/extraction/ExtractionTable";
 import { useBook } from "@/context/IngestedBookContext";
 import { useSettings } from "@/context/AppSettingsContext";
+import { useProject } from "@/context/ProjectContext";
 import { scriptPrompt } from "@/lib/prompts";
 import { runExtraction } from "@/lib/ai";
-import type { AiResponse, ExtractionCategory, ExtractionRow } from "@/types";
-
-const CATEGORY: ExtractionCategory = "characters";
+import { parseScriptBeats } from "@/lib/entities";
+import type { AiResponse } from "@/types";
 
 export default function ScriptPage() {
   const { source } = useBook();
   const { settings } = useSettings();
+  const { project, addScenes } = useProject();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AiResponse | null>(null);
-  const [rows, setRows] = useState<ExtractionRow[]>([]);
-  const [activeFilter, setActiveFilter] = useState<string>("");
+  const [justExtracted, setJustExtracted] = useState<string[]>([]);
 
   const handleRun = async () => {
     if (!source) return;
     setLoading(true);
     setResult(null);
     try {
-      const res = await runExtraction(settings.engines, CATEGORY, scriptPrompt(source));
+      // Pass the last existing beat for beat-to-beat continuity.
+      const lastBeat = project?.scenes?.length ? project.scenes[project.scenes.length - 1] : null;
+      const res = await runExtraction(settings.engines, "characters", scriptPrompt(source, lastBeat));
       setResult(res);
-      setRows(parseScript(res.content));
+      const beats = parseScriptBeats(res.content, source);
+      if (beats.length) {
+        // Stamp continuity links on the new beats.
+        const linked = beats.map((b, i) => ({
+          ...b,
+          previousBeatId: i === 0 ? lastBeat?.id : beats[i - 1].id,
+          continuityState: i === 0 && lastBeat
+            ? `Continues from ${lastBeat.sceneHeading}: ${lastBeat.action.slice(0, 80)}…`
+            : i > 0
+              ? `Continues from ${beats[i - 1].sceneHeading}: ${beats[i - 1].action.slice(0, 80)}…`
+              : undefined,
+        }));
+        addScenes(linked);
+        setJustExtracted(linked.map((b) => b.id));
+      }
     } finally {
       setLoading(false);
     }
-  };
-
-  const exportJson = (r: ExtractionRow[]) => {
-    const blob = new Blob([JSON.stringify(r, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "script-scenes.json";
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -47,53 +52,32 @@ export default function ScriptPage() {
       <PageHeader title="Script" subtitle="Dialogue scripts in 15-second visual beats, minimum 10 per chapter." icon={<PenLine className="h-5 w-5" />} />
 
       <ExtractionRunner
-        category={CATEGORY}
+        category="characters"
         loading={loading}
         result={result}
-        rows={rows}
+        rows={[]}
         onRun={handleRun}
-        onExport={exportJson}
+        onExport={(r) => {
+          const blob = new Blob([JSON.stringify(r, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "script-scenes.json";
+          a.click();
+          URL.revokeObjectURL(url);
+        }}
       />
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-        <h3 className="mb-4 text-sm font-semibold text-white/80">Extracted Scenes</h3>
-        <ExtractionTable
-          category={CATEGORY}
-          rows={rows}
-          filter={(row) => Boolean(row.details || row.name)}
-          activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
-        />
+        <h3 className="mb-4 text-sm font-semibold text-white/80">Script Beats</h3>
+        <p className="text-xs text-white/50 mb-4">Each beat is a 15-second visual beat with dialogue, location, and purpose. AI output starts as Inferred — approve to confirm.</p>
+        {project?.scenes?.length ? (
+          <p className="text-xs text-white/40 mb-3">{project.scenes.length} beat(s) in project. Running extraction again will enforce beat-to-beat continuity from the last beat.</p>
+        ) : null}
+        {justExtracted.length > 0 && (
+          <p className="text-xs text-emerald-400 mb-3">{justExtracted.length} beat(s) saved to project with continuity links.</p>
+        )}
       </div>
     </div>
   );
-}
-
-function parseScript(text: string): ExtractionRow[] {
-  const cleaned = text.replace(/```json\n?|```/gi, "").trim();
-  try {
-    const parsed = JSON.parse(cleaned);
-    const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.scenes) ? parsed.scenes : [parsed];
-    return arr.map((item: Record<string, unknown>, i: number) => ({
-      id: String(item.id ?? `scene-${i + 1}`),
-      name: String(item.sceneHeading ?? item.location ?? `Scene ${i + 1}`),
-      look: "",
-      form: "",
-      size: "",
-      function: "",
-      role: "",
-      traits: "",
-      details: JSON.stringify({
-        act: item.act,
-        location: item.location,
-        time_of_day: item.time_of_day,
-        beat_purpose: item.beat_purpose,
-        speaking_characters: item.speaking_characters,
-        action: item.action,
-        dialogue: item.dialogue,
-      }),
-    }));
-  } catch {
-    return [];
-  }
 }

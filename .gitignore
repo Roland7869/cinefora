@@ -29,3 +29,8 @@ dist-ssr
 /playwright/.cache/
 .last-run.json
 .dyad/
+
+# Environment files (may contain API keys)
+*.env
+*.env.local
+*.env.*

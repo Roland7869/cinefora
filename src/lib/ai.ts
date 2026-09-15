@@ -12,9 +12,25 @@ export interface AiResponse {
   error?: string;
 }
 
+// Minimal type for AI error responses without using `any`.
+interface AiErrorResponse {
+  error?: { message?: string };
+  choices?: unknown[];
+  candidates?: unknown[];
+  content?: unknown;
+}
+
+function extractErrorMessage(data: Record<string, unknown>): string {
+  const err = data.error;
+  if (err && typeof err === "object" && "message" in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return "";
+}
+
 async function postJson(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120_000);
+  const timeout = setTimeout(() => controller.abort(), 1_500_000);
   try {
     const res = await fetch(url, { ...init, signal: controller.signal });
     return res;
@@ -38,12 +54,16 @@ const GEMINI_MODEL = "gemini-2.0-flash";
 async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: string): Promise<AiResponse> {
   const cloud = config.cloud;
   const apiKey = cloud.apiKey;
-  const anthropic = provider === "anthropic";
   const start = performance.now();
   try {
-    if (anthropic || !apiKey) {
-      return { content: "No API key configured for the selected cloud provider.", engine: provider, model: "", elapsedMs: 0 };
+    if (!apiKey) {
+      return { content: "No API key configured for the selected cloud provider.", engine: provider, model: "", elapsedMs: 0, error: "No API key" };
     }
+
+    if (provider === "anthropic") {
+      return anthropicChat(apiKey, prompt, start);
+    }
+
     if (provider === "gemini") {
       const res = await postJson(
         `${CLOUD_BASE.gemini}/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -60,7 +80,7 @@ async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: 
       const data = await res.json().catch(() => ({}));
       const text = data?.candidates?.[0]?.content?.parts?.map((p: { text: string }) => p.text)?.join("");
       return {
-        content: text ?? (res.ok ? "Empty response from provider." : (data as any)?.error?.message),
+        content: text ?? (res.ok ? "Empty response from provider." : extractErrorMessage(data as Record<string, unknown>)),
         engine: provider,
         model: GEMINI_MODEL,
         elapsedMs: Math.round(performance.now() - start),
@@ -73,7 +93,7 @@ async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: 
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: anthropic ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini",
+        model: "gpt-4o-mini",
         messages: [{ role: "system", content: "You are a meticulous film-production extraction specialist. Return ONLY valid JSON, nothing else." }, { role: "user", content: prompt }],
         temperature: 0.2,
         stream: false,
@@ -82,9 +102,9 @@ async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: 
     const data = await res.json().catch(() => ({}));
     const text = data?.choices?.[0]?.message?.content;
     return {
-      content: text ?? (res.ok ? "Empty response from provider." : (data as any)?.error?.message),
+      content: text ?? (res.ok ? "Empty response from provider." : extractErrorMessage(data as Record<string, unknown>)),
       engine: provider,
-      model: anthropic ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini",
+      model: "gpt-4o-mini",
       elapsedMs: Math.round(performance.now() - start),
     };
   } catch (err) {
@@ -93,13 +113,48 @@ async function cloudChat(config: EngineConfig, provider: CloudProvider, prompt: 
   }
 }
 
+async function anthropicChat(apiKey: string, prompt: string, start: number): Promise<AiResponse> {
+  const ANTHROPIC_BASE = "https://api.anthropic.com/v1/messages";
+  const model = "claude-3-5-sonnet-20241022";
+  try {
+    const res = await postJson(ANTHROPIC_BASE, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 4096,
+        system: "You are a meticulous film-production extraction specialist. Return ONLY valid JSON, nothing else.",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    const text = data?.content?.[0]?.text;
+    return {
+      content: text ?? (res.ok ? "Empty response from Anthropic." : extractErrorMessage(data as Record<string, unknown>) || "Anthropic request failed"),
+      engine: "anthropic",
+      model,
+      elapsedMs: Math.round(performance.now() - start),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { content: `Anthropic request failed: ${message}`, engine: "anthropic", model, elapsedMs: 0, error: message };
+  }
+}
+
 async function localChat(config: EngineConfig, local: LocalEngineConfig, prompt: string): Promise<AiResponse> {
   const start = performance.now();
-  const baseUrl = `${local.baseUrl.replace(/\/$/, "")}/v1/chat/completions`;
+  // Route through the Vite dev proxy to bypass CORS.
+  const proxyBase = "/local-proxy";
+  const baseUrl = `${proxyBase}${new URL("/v1/chat/completions", local.baseUrl).pathname}`;
   try {
     const res = await postJson(baseUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json", "X-Local-Engine": local.baseUrl },
       body: JSON.stringify({
         model: local.model,
         messages: [{ role: "system", content: "You are a meticulous film-production extraction specialist. Return ONLY valid JSON, nothing else." }, { role: "user", content: prompt }],
@@ -110,7 +165,7 @@ async function localChat(config: EngineConfig, local: LocalEngineConfig, prompt:
     const data = await res.json().catch(() => ({}));
     const text = data?.choices?.[0]?.message?.content;
     return {
-      content: text ?? (res.ok ? "Empty response from local engine." : (data as any)?.error?.message),
+      content: text ?? (res.ok ? "Empty response from local engine." : extractErrorMessage(data as Record<string, unknown>)),
       engine: local.kind,
       model: local.model,
       elapsedMs: Math.round(performance.now() - start),
@@ -122,9 +177,10 @@ async function localChat(config: EngineConfig, local: LocalEngineConfig, prompt:
 }
 
 async function healthCheck(config: EngineConfig, local: LocalEngineConfig): Promise<{ ok: boolean; status: string; body: string }> {
-  const url = `${local.baseUrl.replace(/\/$/, "")}${local.healthPath}`;
+  const proxyBase = "/local-proxy";
+  const url = `${proxyBase}${new URL(local.healthPath, local.baseUrl).pathname}`;
   try {
-    const res = await fetch(url, { headers: { "Content-Type": "application/json", Accept: "application/json" } });
+    const res = await fetch(url, { headers: { "Content-Type": "application/json", Accept: "application/json", "X-Local-Engine": local.baseUrl } });
     const text = await res.text();
     return { ok: res.ok, status: String(res.status), body: text.slice(0, 200) };
   } catch (err) {
@@ -137,9 +193,11 @@ export async function runExtraction(config: EngineConfig, category: ExtractionCa
   const start = performance.now();
   try {
     const local = config.local[0];
-    if (local) {
+    if (local && local.baseUrl) {
+      console.log(`[runExtraction] Routing to local engine: ${local.kind} at ${local.baseUrl}`);
       return localChat(config, local, prompt);
     }
+    console.log(`[runExtraction] Routing to cloud provider: ${config.cloud.provider}`);
     return cloudChat(config, config.cloud.provider, prompt);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

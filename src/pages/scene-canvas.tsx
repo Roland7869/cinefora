@@ -1,34 +1,47 @@
-import { useState, type ReactNode } from "react";
-import { LayoutGrid, Users, Package, Trash2, Plus, ArrowLeftRight, ArrowUpDown } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { LayoutGrid, Users, Package, Trash2, Plus, ArrowLeftRight, ArrowUpDown, Save } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useBook } from "@/context/IngestedBookContext";
 import { sceneCanvasPrompt, scriptPrompt } from "@/lib/prompts";
 import { runExtraction } from "@/lib/ai";
 import { useSettings } from "@/context/AppSettingsContext";
-import type { ExtractionCategory, ExtractionRow } from "@/types";
-
-interface Actor {
-  id: string;
-  name: string;
-  type: "character" | "object";
-  x: number;
-  y: number;
-  color: string;
-}
+import { useProject } from "@/context/ProjectContext";
+import type { CanvasActor, ExtractionCategory, ExtractionRow, SceneCanvas } from "@/types";
 
 const GRID = 8;
 const COLORS = ["#6366F1", "#22d3ee", "#f472b6", "#fbbf24", "#34d399", "#a78bfa"];
 const STAGE_BG = "https://images.unsplash.com/photo-1519638399135-1491ac152928?auto=format&fit=crop&w=1600&q=80";
 
+function newCanvasId(): string {
+  return `canvas-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export default function SceneCanvasPage() {
   const { source } = useBook();
   const { settings } = useSettings();
-  const [actors, setActors] = useState<Actor[]>([]);
+  const { project, updateSceneCanvas } = useProject();
+
+  // Use the first scene canvas from the project, or create a blank one.
+  const saved = project?.sceneCanvases?.[0];
+  const [canvasId, setCanvasId] = useState(saved?.id ?? newCanvasId());
+  const [actors, setActors] = useState<CanvasActor[]>(saved?.actors ?? []);
   const [selected, setSelected] = useState<string | null>(null);
   const [extraction, setExtraction] = useState<{ running: boolean; done: boolean }>({ running: false, done: false });
-  const [seeded, setSeeded] = useState(false);
-  const [output, setOutput] = useState<string>("");
+  const [output, setOutput] = useState(saved?.generatedOutput ?? "");
+
+  // Persist canvas state back to the project on every meaningful change.
+  const persistCanvas = (nextActors: CanvasActor[], nextOutput: string) => {
+    const canvas: SceneCanvas = {
+      id: canvasId,
+      name: "Scene Canvas",
+      actors: nextActors,
+      generatedOutput: nextOutput,
+      createdAt: saved?.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    updateSceneCanvas(canvas);
+  };
 
   const handleSeed = async () => {
     if (!source) return;
@@ -36,17 +49,16 @@ export default function SceneCanvasPage() {
     try {
       const res = await runExtraction(settings.engines, "characters", scriptPrompt(source));
       const rows = parseScenes(res.content).slice(0, 6);
-      setActors(
-        rows.map((row, i) => ({
-          id: row.id,
-          name: row.name,
-          type: "character",
-          x: ((i % GRID) / GRID) * 100,
-          y: Math.floor((i / GRID) / GRID) * 100,
-          color: COLORS[i % COLORS.length],
-        })),
-      );
-      setSeeded(true);
+      const nextActors: CanvasActor[] = rows.map((row, i) => ({
+        id: row.id,
+        name: row.name,
+        type: "character",
+        x: ((i % GRID) / GRID) * 100,
+        y: Math.floor((i / GRID) / GRID) * 100,
+        color: COLORS[i % COLORS.length],
+      }));
+      setActors(nextActors);
+      persistCanvas(nextActors, output);
     } finally {
       setExtraction((e) => ({ ...e, running: false, done: true }));
     }
@@ -57,7 +69,9 @@ export default function SceneCanvasPage() {
     setExtraction((e) => ({ ...e, running: true }));
     try {
       const res = await runExtraction(settings.engines, "characters", sceneCanvasPrompt(source));
-      setOutput(sanitize(res.content));
+      const nextOutput = sanitize(res.content);
+      setOutput(nextOutput);
+      persistCanvas(actors, nextOutput);
     } finally {
       setExtraction((e) => ({ ...e, running: false, done: true }));
     }
@@ -65,7 +79,7 @@ export default function SceneCanvasPage() {
 
   const addActor = (type: "character" | "object") => {
     const count = actors.length;
-    const actor: Actor = {
+    const actor: CanvasActor = {
       id: `${type}-${Date.now()}`,
       name: `${type === "character" ? "Character" : "Object"} ${count + 1}`,
       type,
@@ -73,19 +87,51 @@ export default function SceneCanvasPage() {
       y: 12 + Math.floor(count / 3) * 25,
       color: COLORS[count % COLORS.length],
     };
-    setActors((a) => [...a, actor]);
+    const next = [...actors, actor];
+    setActors(next);
     setSelected(actor.id);
+    persistCanvas(next, output);
   };
 
   const moveActor = (id: string, dx: number, dy: number) => {
-    setActors((a) => a.map((act) => (act.id === id ? { ...act, x: Math.min(92, Math.max(4, act.x + dx)), y: Math.min(92, Math.max(4, act.y + dy)) } : act)));
+    const next = actors.map((act) => (act.id === id ? { ...act, x: Math.min(92, Math.max(4, act.x + dx)), y: Math.min(92, Math.max(4, act.y + dy)) } : act));
+    setActors(next);
+    persistCanvas(next, output);
   };
 
-  const removeActor = (id: string) => setActors((a) => a.filter((act) => act.id !== id));
+  const removeActor = (id: string) => {
+    const next = actors.filter((act) => act.id !== id);
+    setActors(next);
+    persistCanvas(next, output);
+  };
+
+  const handleSave = () => {
+    persistCanvas(actors, output);
+  };
+
+  const handleNewCanvas = () => {
+    const id = newCanvasId();
+    setCanvasId(id);
+    setActors([]);
+    setOutput("");
+    setSelected(null);
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-6 py-8">
       <PageHeader title="Scene Canvas" subtitle="Interactive spatial blocking + high-fidelity canvas prompt generation." icon={<LayoutGrid className="h-5 w-5" />} />
+
+      <div className="flex items-center gap-2 text-xs text-white/50">
+        <span className="rounded-full bg-white/10 px-2 py-1 font-mono">
+          {actors.length} actor(s) · {output ? "Canvas generated" : "No canvas"}
+        </span>
+        <Button size="xs" variant="outline" className="border-white/10" onClick={handleNewCanvas}>
+          New canvas
+        </Button>
+        <Button size="xs" variant="outline" className="border-white/10" onClick={handleSave}>
+          <Save className="mr-1 h-3 w-3" /> Save
+        </Button>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
         <aside className="space-y-4">
@@ -123,7 +169,7 @@ export default function SceneCanvasPage() {
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-white/80">Stage Grid ({GRID}×{GRID})</h3>
-              <p className="text-xs text-white/40">Drag handles to reposition. Click an actor to select.</p>
+              <p className="text-xs text-white/40">Click arrows to reposition. Click an actor to select.</p>
             </div>
             <Button size="sm" onClick={handleSeed} disabled={extraction.running}>
               {extraction.running ? (
@@ -283,8 +329,6 @@ function renderInline(text: string): string {
     })
     .join("");
 }
-
-const CATEGORY: ExtractionCategory = "characters";
 
 function parseScenes(text: string): ExtractionRow[] {
   const cleaned = text.replace(/```json\n?|```/gi, "").trim();

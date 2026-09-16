@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { LayoutGrid, Users, Package, Trash2, Plus, ArrowLeftRight, ArrowUpDown, Save } from "lucide-react";
+import { LayoutGrid, Users, Package, Trash2, Plus, ArrowLeftRight, ArrowUpDown, Save, Download } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useBook } from "@/context/IngestedBookContext";
@@ -68,7 +68,7 @@ export default function SceneCanvasPage() {
     if (!source) return;
     setExtraction((e) => ({ ...e, running: true }));
     try {
-      const res = await runExtraction(settings.engines, "characters", sceneCanvasPrompt(source));
+      const res = await runExtraction(settings.engines, "characters", sceneCanvasPrompt(source, project?.characterFiles));
       const nextOutput = sanitize(res.content);
       setOutput(nextOutput);
       persistCanvas(actors, nextOutput);
@@ -117,6 +117,20 @@ export default function SceneCanvasPage() {
     setSelected(null);
   };
 
+  const handleExportMd = () => {
+    const actorSummary = actors.length > 0
+      ? `\n\n## Blocking Summary\n\n${actors.map((a) => `- **${a.name}** (${a.type}) at position (${Math.round(a.x)}%, ${Math.round(a.y)}%)`).join("\n")}`
+      : "";
+    const content = `# Scene Canvas\n${output}${actorSummary}`;
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "scene-canvas.md";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-6 py-8">
       <PageHeader title="Scene Canvas" subtitle="Interactive spatial blocking + high-fidelity canvas prompt generation." icon={<LayoutGrid className="h-5 w-5" />} />
@@ -131,6 +145,11 @@ export default function SceneCanvasPage() {
         <Button size="xs" variant="outline" className="border-white/10" onClick={handleSave}>
           <Save className="mr-1 h-3 w-3" /> Save
         </Button>
+        {output && (
+          <Button size="xs" variant="outline" className="border-white/10" onClick={handleExportMd}>
+            <Download className="mr-1 h-3 w-3" /> Export .md
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">

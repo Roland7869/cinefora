@@ -86,6 +86,30 @@ export function ExtractionTable({ category, rows, filter, activeFilter, onFilter
     URL.revokeObjectURL(url);
   };
 
+  const exportMd = () => {
+    const lines: string[] = [`# ${category.charAt(0).toUpperCase() + category.slice(1)} Extraction\n`];
+    for (const row of rows) {
+      lines.push(`## ${row.name ?? "Unnamed"}`);
+      if (row.look) lines.push(`**Look:** ${row.look}`);
+      if (row.form) lines.push(`**Form:** ${row.form}`);
+      if (row.size) lines.push(`**Size:** ${row.size}`);
+      if (row.function) lines.push(`**Function:** ${row.function}`);
+      if (row.role) lines.push(`**Role:** ${row.role}`);
+      if (row.traits) lines.push(`**Traits:** ${row.traits}`);
+      if (row.details) lines.push(`**Details:** ${row.details}`);
+      lines.push("");
+      lines.push("---\n");
+    }
+    const content = lines.join("\n");
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${category}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -99,10 +123,10 @@ export function ExtractionTable({ category, rows, filter, activeFilter, onFilter
           />
         </div>
         <button
-          onClick={exportJson}
+          onClick={exportMd}
           className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
         >
-          <Download className="h-3.5 w-3.5" /> Export JSON
+          <Download className="h-3.5 w-3.5" /> Export .md
         </button>
       </div>
 

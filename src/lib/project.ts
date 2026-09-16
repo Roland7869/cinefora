@@ -9,6 +9,7 @@
 
 import type {
   AppSettings,
+  CharacterFile,
   PromptLibraryDoc,
   ReviewedEntity,
   SceneCanvas,
@@ -36,6 +37,7 @@ export interface Project {
   scenes: ScriptBeat[];
   storyboards: StoryboardBeat[];
   sceneCanvases: SceneCanvas[];
+  characterFiles: CharacterFile[];
   promptLibrary: PromptLibraryDoc[];
   settings: AppSettings;
 }
@@ -65,6 +67,7 @@ export function createEmptyProject(name = "Untitled Project"): Project {
     scenes: [],
     storyboards: [],
     sceneCanvases: [],
+    characterFiles: [],
     promptLibrary: [],
     settings: {
       engines: {

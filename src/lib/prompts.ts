@@ -1,11 +1,17 @@
 // Prompt builders that combine the active ingested book section with a
 // category-specific instruction and ask the model to return structured JSON.
 
-import type { ExtractionCategory, ExtractionRow, IngestedSource, ScriptBeat, StoryboardBeat } from "@/types";
+import type { CharacterFile, ExtractionCategory, ExtractionRow, IngestedSource, ReviewedEntity, ScriptBeat, StoryboardBeat } from "@/types";
 
 function activeText(source: IngestedSource | null): string {
   if (!source) return "";
   return source.text.slice(0, 40_000); // keep the prompt within limits
+}
+
+function characterFilesBlock(files: CharacterFile[] | undefined): string {
+  if (!files || files.length === 0) return "";
+  const joined = files.map((f) => `### ${f.name}\n${f.content}`).join("\n\n---\n\n");
+  return `\n\nWRITER-PROVIDED CHARACTER REFERENCE (use these descriptions to avoid hallucination — treat them as authoritative character specifications):\n"""\n${joined}\n"""`;
 }
 
 function system(): string {
@@ -32,8 +38,9 @@ function build(category: ExtractionCategory, source: IngestedSource | null): str
   return `${system()}\n\nProduce the extraction for the following passage.\n\nINSTRUCTION:\n${instruction[category]}\n\nPASSAGE:\n"""${text}"""\n\nReturn ONLY the JSON array.`;
 }
 
-export function scriptPrompt(source: IngestedSource | null, previousBeat?: ScriptBeat | null): string {
+export function scriptPrompt(source: IngestedSource | null, previousBeat?: ScriptBeat | null, characterFiles?: CharacterFile[]): string {
   const text = activeText(source);
+  const charBlock = characterFilesBlock(characterFiles);
   const continuityBlock = previousBeat
     ? `\n\nCONTINUITY CONTEXT — The immediately preceding beat was:\n${JSON.stringify({
         id: previousBeat.id,
@@ -68,13 +75,14 @@ Every beat must be rendered using the structured XML metadata wrapper + formatte
 Each beat must also include the screenplay text: SCENE HEADING / ACTION / CHARACTER / DIALOGUE / PARENTHETICAL. Dialogue and voiceover are attributed strictly to the speaking character.
 
 PASSAGE:
-"""${text}"""
+"""${text}"""${charBlock}
 
 Produce your output as a JSON array. Each element represents one beat and contains: id, act, sceneHeading, location, time_of_day, beat_purpose, speaking_characters[], action (the screenplay action lines), and dialogue[] (the screenplay dialogue lines, each attributed to its speaking character). Return ONLY the JSON array.`;
 }
 
-export function storyboardPrompt(source: IngestedSource | null, previousBeat?: StoryboardBeat | null): string {
+export function storyboardPrompt(source: IngestedSource | null, previousBeat?: StoryboardBeat | null, characterFiles?: CharacterFile[]): string {
   const text = activeText(source);
+  const charBlock = characterFilesBlock(characterFiles);
   const continuityBlock = previousBeat
     ? `\n\nCONTINUITY CONTEXT — The immediately preceding storyboard beat was:\n${JSON.stringify({
         id: previousBeat.id,
@@ -117,13 +125,14 @@ Every beat must be rendered using the structured XML metadata wrapper + formatte
 Each beat must also include the 4-panel visual roadmap (Panel 1 @00:00, Panel 2 @00:05, Panel 3 @00:10, Panel 4 @00:15), atmospheric lighting notes, and physical movement description.
 
 PASSAGE:
-"""${text}"""
+"""${text}"""${charBlock}
 
 Produce your output as a JSON array. Each element represents one beat and contains: id, act, sceneHeading, location, time_of_day, primary_focus, shot_scale, camera_movement, panels[] (an array of 4 panel descriptions with timestamps 00:00, 00:05, 00:10, 00:15), lighting, and movement. Return ONLY the JSON array.`;
 }
 
-export function characterPrompt(source: IngestedSource | null): string {
+export function characterPrompt(source: IngestedSource | null, characterFiles?: CharacterFile[]): string {
   const text = activeText(source);
+  const charBlock = characterFilesBlock(characterFiles);
   return `You are a Character Designer, Casting Director, AI Visual Consistency Specialist, and Character Sheet Prompter. Extract every character present or introduced in the chapter text into a dedicated characters.md file. Build master character specifications, physical traits, expression sheets, multi-angle descriptions, pose references, Z-Image Turbo prompts, and 4-panel master reference sheet prompts (for Nano Banana 2 / external tools) to ensure 100% visual consistency across 15-second visual beats.
 
 CHARACTER EXTRACTION RULES:
@@ -174,13 +183,14 @@ Generate the full reference system for each extracted character using the struct
 > Cinematic landscape 16:9 still of [NAME], an original character, [scene context], [lighting mood], [atmosphere]. Shot on 35mm film, shallow depth of field, natural movement frozen mid-gesture.
 
 PASSAGE:
-"""${text}"""
+"""${text}"""${charBlock}
 
 Produce the complete character reference system for every character found in the passage, using the template above. Return the output as readable Markdown text.`;
 }
 
-export function sceneCanvasPrompt(source: IngestedSource | null): string {
+export function sceneCanvasPrompt(source: IngestedSource | null, characterFiles?: CharacterFile[]): string {
   const text = activeText(source);
+  const charBlock = characterFilesBlock(characterFiles);
   return `You are a Production Designer, Visual Effects Supervisor, and AI Scene Canvas Specialist. Construct a dedicated scene_canvas.md file that synthesizes environmental geometry, architecture, lighting, key props, and active character spatial orientation per 15-second visual beat. Generate high-fidelity canvas prompts (optimized for FLUX.1, Wan 3.0, xAI, or Z-Image Turbo) that capture the complete visual landscape, keeping characters distinct, non-celebrity, and perfectly integrated into the world.
 
 SCENE CANVAS RULES:
@@ -201,7 +211,7 @@ Generate the complete scene canvas system for each beat using the structured lay
 Each beat must also include the high-fidelity canvas prompt (100-300 words) and the complete spatial geography (left-to-right, foreground-to-background positioning).
 
 PASSAGE:
-"""${text}"""
+"""${text}"""${charBlock}
 
 Produce the complete scene canvas system for every beat found in the passage, using the template above. Return the output as readable Markdown text.`;
 }
@@ -245,4 +255,86 @@ export function parseExtraction(jsonText: string, category: ExtractionCategory):
 
 export function sanitizeAiResponse(text: string): string {
   return text.replace(/```json\n?|```/gi, "").trim();
+}
+
+// --- Text formatters for export ------------------------------------------------
+
+export function formatScriptBeatsAsMarkdown(beats: ScriptBeat[]): string {
+  if (beats.length === 0) return "# Script Beats\n\nNo beats generated yet.";
+  const lines: string[] = ["# Script Beats\n"];
+  for (const b of beats) {
+    lines.push(`## Beat — Act ${b.act}`);
+    lines.push(`**Scene:** ${b.sceneHeading}`);
+    if (b.location) lines.push(`**Location:** ${b.location}`);
+    if (b.timeOfDay) lines.push(`**Time:** ${b.timeOfDay}`);
+    if (b.beatPurpose) lines.push(`**Purpose:** ${b.beatPurpose}`);
+    if (b.speakingCharacters.length > 0) lines.push(`**Characters:** ${b.speakingCharacters.join(", ")}`);
+    lines.push("");
+    if (b.action) {
+      lines.push("### Action");
+      lines.push(b.action);
+      lines.push("");
+    }
+    if (b.dialogue.length > 0) {
+      lines.push("### Dialogue");
+      for (const d of b.dialogue) {
+        lines.push(`**${d.character}:** ${d.line}`);
+      }
+      lines.push("");
+    }
+    lines.push("---\n");
+  }
+  return lines.join("\n");
+}
+
+export function formatStoryboardBeatsAsMarkdown(beats: StoryboardBeat[]): string {
+  if (beats.length === 0) return "# Storyboard Shots\n\nNo shots generated yet.";
+  const lines: string[] = ["# Storyboard Shots\n"];
+  for (const b of beats) {
+    lines.push(`## Shot — Act ${b.act}`);
+    lines.push(`**Scene:** ${b.sceneHeading}`);
+    if (b.location) lines.push(`**Location:** ${b.location}`);
+    if (b.timeOfDay) lines.push(`**Time:** ${b.timeOfDay}`);
+    lines.push(`**Focus:** ${b.primaryFocus}`);
+    lines.push(`**Scale:** ${b.shotScale} | **Camera:** ${b.cameraMovement}`);
+    lines.push("");
+    if (b.panels.length > 0) {
+      lines.push("### Panels");
+      b.panels.forEach((p, i) => {
+        const ts = ["00:00", "00:05", "00:10", "00:15"][i] ?? `00:${String(i * 5).padStart(2, "0")}`;
+        lines.push(`- **Panel ${i + 1} (${ts}):** ${p}`);
+      });
+      lines.push("");
+    }
+    if (b.lighting) {
+      lines.push(`**Lighting:** ${b.lighting}`);
+    }
+    if (b.movement) {
+      lines.push(`**Movement:** ${b.movement}`);
+    }
+    lines.push("");
+    lines.push("---\n");
+  }
+  return lines.join("\n");
+}
+
+export function formatEntitiesAsMarkdown(entities: ReviewedEntity[], category: string): string {
+  const title = category.charAt(0).toUpperCase() + category.slice(1);
+  if (entities.length === 0) return `# ${title}\n\nNo ${category} extracted yet.`;
+  const lines: string[] = [`# ${title}\n`];
+  for (const e of entities) {
+    lines.push(`## ${e.name}`);
+    lines.push(`**Status:** ${e.status}`);
+    if (e.role) lines.push(`**Role:** ${e.role}`);
+    if (e.look) lines.push(`**Look:** ${e.look}`);
+    if (e.form) lines.push(`**Form:** ${e.form}`);
+    if (e.size) lines.push(`**Size:** ${e.size}`);
+    if (e.function) lines.push(`**Function:** ${e.function}`);
+    if (e.traits) lines.push(`**Traits:** ${e.traits}`);
+    if (e.details) lines.push(`**Details:** ${e.details}`);
+    if (e.notes) lines.push(`**Notes:** ${e.notes}`);
+    lines.push("");
+    lines.push("---\n");
+  }
+  return lines.join("\n");
 }

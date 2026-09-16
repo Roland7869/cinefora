@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FolderOpen, Download, Save, Plus, History, Trash2 } from "lucide-react";
+import { FolderOpen, Download, Save, Plus, History, Trash2, FileText } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,9 +16,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProject } from "@/context/ProjectContext";
 import { deleteBackup, loadBackups } from "@/lib/project";
+import {
+  formatScriptBeatsAsMarkdown,
+  formatStoryboardBeatsAsMarkdown,
+  formatEntitiesAsMarkdown,
+} from "@/lib/prompts";
 
 export function ProjectMenu() {
-  const { isNew, createProject, saveProject, exportJson, importJson, clearProject } = useProject();
+  const { isNew, createProject, saveProject, exportJson, importJson, clearProject, project } = useProject();
   const [newName, setNewName] = useState("");
   const [opening, setOpening] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -43,6 +48,44 @@ export function ProjectMenu() {
     const a = document.createElement("a");
     a.href = url;
     a.download = `cinefora-project.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportAll = () => {
+    if (!project) return;
+    const sections: string[] = [];
+    sections.push(`# ${project.name} — Full Export\n`);
+    sections.push(`*Exported ${new Date().toLocaleString()}*\n`);
+    sections.push("---\n");
+    if (project.characters.length > 0) { sections.push(formatEntitiesAsMarkdown(project.characters, "characters")); sections.push("\n---\n"); }
+    if (project.assets.length > 0) { sections.push(formatEntitiesAsMarkdown(project.assets, "assets")); sections.push("\n---\n"); }
+    if (project.locations.length > 0) { sections.push(formatEntitiesAsMarkdown(project.locations, "locations")); sections.push("\n---\n"); }
+    if (project.buildings.length > 0) { sections.push(formatEntitiesAsMarkdown(project.buildings, "buildings")); sections.push("\n---\n"); }
+    if (project.spacecraft.length > 0) { sections.push(formatEntitiesAsMarkdown(project.spacecraft, "spacecraft")); sections.push("\n---\n"); }
+    if (project.scenes.length > 0) { sections.push(formatScriptBeatsAsMarkdown(project.scenes)); sections.push("\n---\n"); }
+    if (project.storyboards.length > 0) { sections.push(formatStoryboardBeatsAsMarkdown(project.storyboards)); sections.push("\n---\n"); }
+    if (project.sceneCanvases.length > 0) {
+      sections.push("# Scene Canvases\n");
+      for (const canvas of project.sceneCanvases) {
+        sections.push(`## ${canvas.name}`);
+        if (canvas.actors.length > 0) {
+          sections.push("\n### Blocking\n");
+          for (const actor of canvas.actors) {
+            sections.push(`- **${actor.name}** (${actor.type}) at position (${Math.round(actor.x)}%, ${Math.round(actor.y)}%)`);
+          }
+        }
+        if (canvas.generatedOutput) { sections.push("\n### Generated Canvas\n"); sections.push(canvas.generatedOutput); }
+        sections.push("");
+      }
+      sections.push("\n---\n");
+    }
+    const content = sections.join("\n");
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "cinefora-export.md";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -90,6 +133,9 @@ export function ProjectMenu() {
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={handleExport} className="cursor-pointer">
             <Download className="mr-2 h-4 w-4" /> Export JSON
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleExportAll} className="cursor-pointer">
+            <FileText className="mr-2 h-4 w-4" /> Export All as Text
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={handleOpen} className="cursor-pointer" disabled={opening}>
             {opening ? <Spinner /> : <FolderOpen className="mr-2 h-4 w-4" />}

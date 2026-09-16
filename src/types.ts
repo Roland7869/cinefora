@@ -199,6 +199,14 @@ export interface ExtractionRow {
   details?: string;
 }
 
+// Uploaded character reference files (plain text / Markdown).
+export interface CharacterFile {
+  id: string;
+  name: string;
+  content: string;
+  uploadedAt: string;
+}
+
 // Prompt library
 export interface PromptLibraryDoc {
   id: string;

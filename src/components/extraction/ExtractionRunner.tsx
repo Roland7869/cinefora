@@ -81,7 +81,7 @@ export function ExtractionRunner({ category, loading, result, rows, onRun, onExp
                 {result.error ? "Request failed" : `Engine: ${result.engine} · Model: ${result.model} · ${result.elapsedMs}ms`}
               </span>
               <Button size="xs" variant="outline" className="border-white/10 text-[11px] hover:bg-white/10" onClick={() => onExport(parsedRows)}>
-                <Download className="mr-1.5 h-3 w-3" /> Export JSON ({parsedRows.length})
+                <Download className="mr-1.5 h-3 w-3" /> Export ({parsedRows.length})
               </Button>
             </div>
             {errorMsg && (

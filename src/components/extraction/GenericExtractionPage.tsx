@@ -59,11 +59,25 @@ export function GenericExtractionPage({ category, title, subtitle, icon, prompt 
         rows={rows}
         onRun={handleRun}
         onExport={(r) => {
-          const blob = new Blob([JSON.stringify(r, null, 2)], { type: "application/json" });
+          const lines: string[] = [`# ${title}\n`];
+          for (const row of r) {
+            lines.push(`## ${row.name ?? "Unnamed"}`);
+            if (row.look) lines.push(`**Look:** ${row.look}`);
+            if (row.form) lines.push(`**Form:** ${row.form}`);
+            if (row.size) lines.push(`**Size:** ${row.size}`);
+            if (row.function) lines.push(`**Function:** ${row.function}`);
+            if (row.role) lines.push(`**Role:** ${row.role}`);
+            if (row.traits) lines.push(`**Traits:** ${row.traits}`);
+            if (row.details) lines.push(`**Details:** ${row.details}`);
+            lines.push("");
+            lines.push("---\n");
+          }
+          const content = lines.join("\n");
+          const blob = new Blob([content], { type: "text/markdown" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = `${category}.json`;
+          a.download = `${category}.md`;
           a.click();
           URL.revokeObjectURL(url);
         }}

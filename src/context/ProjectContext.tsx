@@ -10,7 +10,7 @@ import {
   type Project,
 } from "@/lib/project";
 import { type EntityCategory } from "@/lib/entities";
-import type { ReviewedEntity, SceneCanvas, ScriptBeat, SourceEntry, StoryboardBeat } from "@/types";
+import type { ReviewedEntity, CharacterFile, SceneCanvas, ScriptBeat, SourceEntry, StoryboardBeat } from "@/types";
 
 interface ProjectContextValue {
   project: Project | null;
@@ -36,6 +36,9 @@ interface ProjectContextValue {
   // Scene Canvas
   updateSceneCanvas: (canvas: SceneCanvas) => void;
   removeSceneCanvas: (id: string) => void;
+  // Character Files
+  addCharacterFile: (file: CharacterFile) => void;
+  removeCharacterFile: (id: string) => void;
 }
 
 const PROJECT_CATEGORIES: EntityCategory[] = ["characters", "locations", "buildings", "assets", "spacecraft"];
@@ -176,6 +179,24 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     [project, commit],
   );
 
+  const addCharacterFile = useCallback(
+    (file: CharacterFile) => {
+      const exists = project.characterFiles.some((f) => f.id === file.id);
+      const next = exists
+        ? project.characterFiles.map((f) => (f.id === file.id ? file : f))
+        : [...project.characterFiles, file];
+      commit({ ...project, characterFiles: next });
+    },
+    [project, commit],
+  );
+
+  const removeCharacterFile = useCallback(
+    (id: string) => {
+      commit({ ...project, characterFiles: project.characterFiles.filter((f) => f.id !== id) });
+    },
+    [project, commit],
+  );
+
   const value = useMemo<ProjectContextValue>(
     () => ({
       project,
@@ -197,6 +218,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     addStoryboards,
     updateSceneCanvas,
     removeSceneCanvas,
+    addCharacterFile,
+    removeCharacterFile,
   }),
     [
       project,
@@ -217,6 +240,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       addStoryboards,
       updateSceneCanvas,
       removeSceneCanvas,
+      addCharacterFile,
+      removeCharacterFile,
     ],
   );
 

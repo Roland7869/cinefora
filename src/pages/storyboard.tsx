@@ -1,17 +1,18 @@
-import { useState } from "react";
-import { Film } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Film, Download } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ExtractionRunner } from "@/components/extraction/ExtractionRunner";
-import { ExtractionTable } from "@/components/extraction/ExtractionTable";
+import { MarkdownPreview } from "@/components/settings/MarkdownPreview";
+import { Button } from "@/components/ui/button";
 import { useBook } from "@/context/IngestedBookContext";
 import { useSettings } from "@/context/AppSettingsContext";
 import { useProject } from "@/context/ProjectContext";
-import { storyboardPrompt } from "@/lib/prompts";
+import { storyboardPrompt, formatStoryboardBeatsAsMarkdown } from "@/lib/prompts";
 import { runExtraction } from "@/lib/ai";
 import { parseStoryboardBeats } from "@/lib/entities";
-import type { AiResponse, ExtractionCategory, ExtractionRow } from "@/types";
+import type { AiResponse, StoryboardBeat } from "@/types";
 
-const CATEGORY: ExtractionCategory = "characters";
+const CATEGORY = "characters" as const;
 
 export default function StoryboardPage() {
   const { source } = useBook();
@@ -19,9 +20,18 @@ export default function StoryboardPage() {
   const { project, addStoryboards } = useProject();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AiResponse | null>(null);
-  const [rows, setRows] = useState<ExtractionRow[]>([]);
-  const [activeFilter, setActiveFilter] = useState<string>("");
-  const [savedCount, setSavedCount] = useState(0);
+  const [justExtracted, setJustExtracted] = useState<string[]>([]);
+  const [newBeats, setNewBeats] = useState<StoryboardBeat[]>([]);
+
+  const allBeats = useMemo(() => {
+    const existing = project?.storyboards ?? [];
+    if (newBeats.length === 0) return existing;
+    const newIds = new Set(newBeats.map((b) => b.id));
+    const older = existing.filter((b) => !newIds.has(b.id));
+    return [...older, ...newBeats];
+  }, [project?.storyboards, newBeats]);
+
+  const markdown = useMemo(() => formatStoryboardBeatsAsMarkdown(allBeats), [allBeats]);
 
   const handleRun = async () => {
     if (!source) return;
@@ -29,7 +39,7 @@ export default function StoryboardPage() {
     setResult(null);
     try {
       const lastBeat = project?.storyboards?.length ? project.storyboards[project.storyboards.length - 1] : null;
-      const res = await runExtraction(settings.engines, CATEGORY, storyboardPrompt(source, lastBeat));
+      const res = await runExtraction(settings.engines, CATEGORY, storyboardPrompt(source, lastBeat, project?.characterFiles));
       setResult(res);
       const parsed = parseStoryboardBeats(res.content, source);
       if (parsed.length) {
@@ -43,31 +53,22 @@ export default function StoryboardPage() {
               : undefined,
         }));
         addStoryboards(linked);
-        setRows(parsed.map((b) => ({
-          id: b.id,
-          name: b.primaryFocus,
-          look: "",
-          form: "",
-          size: "",
-          function: "",
-          role: "",
-          traits: "",
-          details: JSON.stringify({
-            act: b.act,
-            location: b.location,
-            time_of_day: b.timeOfDay,
-            shot_scale: b.shotScale,
-            camera_movement: b.cameraMovement,
-            panels: b.panels,
-            lighting: b.lighting,
-            movement: b.movement,
-          }),
-        })));
-        setSavedCount(linked.length);
+        setNewBeats(linked);
+        setJustExtracted(linked.map((b) => b.id));
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExportMd = () => {
+    const blob = new Blob([markdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "storyboard-shots.md";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -78,35 +79,36 @@ export default function StoryboardPage() {
         category={CATEGORY}
         loading={loading}
         result={result}
-        rows={rows}
+        rows={[]}
         onRun={handleRun}
-        onExport={(r) => {
-          const blob = new Blob([JSON.stringify(r, null, 2)], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "storyboard-shots.json";
-          a.click();
-          URL.revokeObjectURL(url);
-        }}
+        onExport={handleExportMd}
       />
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-        <h3 className="mb-4 text-sm font-semibold text-white/80">Shot List</h3>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-white/80">Shot List</h3>
+          {allBeats.length > 0 && (
+            <Button size="sm" variant="outline" className="border-white/10 gap-2" onClick={handleExportMd}>
+              <Download className="h-4 w-4" /> Export .md
+            </Button>
+          )}
+        </div>
         {project?.storyboards?.length ? (
           <p className="text-xs text-white/40 mb-3">{project.storyboards.length} shot(s) in project. Running extraction enforces beat-to-beat continuity.</p>
         ) : null}
-        {savedCount > 0 && (
-          <p className="text-xs text-emerald-400 mb-3">{savedCount} shot(s) saved to project with continuity links.</p>
+        {justExtracted.length > 0 && (
+          <p className="text-xs text-emerald-400 mb-3">{justExtracted.length} shot(s) saved to project with continuity links.</p>
         )}
-        <ExtractionTable
-          category={CATEGORY}
-          rows={rows}
-          filter={(row) => Boolean(row.details || row.name)}
-          activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
-        />
       </div>
+
+      {allBeats.length > 0 && (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+          <h3 className="mb-4 text-sm font-semibold text-white/80">Preview</h3>
+          <div className="max-h-[600px] overflow-y-auto rounded-lg border border-white/10 bg-[#0a0a12] p-4">
+            <MarkdownPreview content={markdown} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

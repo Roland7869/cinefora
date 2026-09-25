@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Loader2, AlertTriangle, RotateCcw } from "lucide-react";
+import { Sparkles, CheckCircle2, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ExtractionRunner } from "@/components/extraction/ExtractionRunner";
 import { EntityReviewPanel } from "@/components/entities/EntityReviewPanel";
@@ -7,9 +7,23 @@ import { useBook } from "@/context/IngestedBookContext";
 import { useSettings } from "@/context/AppSettingsContext";
 import { useProject } from "@/context/ProjectContext";
 import { runExtraction } from "@/lib/ai";
-import { extractPrompt, parseExtraction } from "@/lib/prompts";
+import { extractPrompt } from "@/lib/prompts";
 import { parseEntitiesToReviewed } from "@/lib/entities";
-import type { AiResponse, ExtractionCategory, ExtractionRow } from "@/types";
+import type { AiResponse, ExtractionCategory, ExtractionRow, ReviewedEntity } from "@/types";
+
+function toRow(e: ReviewedEntity): ExtractionRow {
+  return {
+    id: e.id,
+    name: e.name,
+    look: e.look,
+    form: e.form,
+    size: e.size,
+    function: e.function,
+    role: e.role,
+    traits: e.traits,
+    details: e.details,
+  };
+}
 
 interface GenericExtractionPageProps {
   category: ExtractionCategory;
@@ -27,21 +41,34 @@ export function GenericExtractionPage({ category, title, subtitle, icon, prompt 
   const [result, setResult] = useState<AiResponse | null>(null);
   const [rows, setRows] = useState<ExtractionRow[]>([]);
   const [justExtracted, setJustExtracted] = useState<string[]>([]);
+  const [status, setStatus] = useState<{ kind: "ok" | "warn"; message: string } | null>(null);
 
   const handleRun = async () => {
     if (!source) return;
     setLoading(true);
     setResult(null);
+    setStatus(null);
     try {
       const res = await runExtraction(settings.engines, category, prompt(source));
       setResult(res);
-      setRows(parseExtraction(res.content, category));
-      // Create reviewed entities (status: inferred) with provenance, so AI
-      // output never silently becomes canonical project data.
+      if (res.error) {
+        setStatus({ kind: "warn", message: `Extraction failed: ${res.error}` });
+        return;
+      }
       const entities = parseEntitiesToReviewed(res.content, source, category);
+      setRows(entities.length ? entities.map(toRow) : []);
       if (entities.length) {
+        // Create reviewed entities (status: inferred) with provenance, so AI
+        // output never silently becomes canonical project data.
         addEntities(category, entities);
         setJustExtracted(entities.map((e) => e.id));
+        setStatus({ kind: "ok", message: `${entities.length} ${LABELS[category].toLowerCase()} extracted and saved to project.` });
+      } else {
+        setStatus({
+          kind: "warn",
+          message:
+            "The AI response could not be parsed as structured JSON. Check the raw output below — if it is prose or Markdown, try running again or switching to a model that follows JSON instructions.",
+        });
       }
     } finally {
       setLoading(false);
@@ -82,6 +109,23 @@ export function GenericExtractionPage({ category, title, subtitle, icon, prompt 
           URL.revokeObjectURL(url);
         }}
       />
+
+      {status && (
+        <div
+          className={`flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
+            status.kind === "ok"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+          }`}
+        >
+          {status.kind === "ok" ? (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          )}
+          {status.message}
+        </div>
+      )}
 
       <EntityReviewPanel
         category={category}

@@ -162,6 +162,7 @@ export function EntityReviewPanel({ category, title, subtitle, icon, justExtract
               <EntityRow
                 key={entity.id}
                 entity={entity}
+                category={category}
                 isFresh={justExtracted.includes(entity.id)}
                 onApprove={() => approve(entity.id)}
                 onEdit={() => setEditing(entity)}
@@ -176,6 +177,7 @@ export function EntityReviewPanel({ category, title, subtitle, icon, justExtract
         <EditDialog
           open={true}
           entity={editing}
+          category={category}
           onClose={() => setEditing(null)}
           onSaved={() => setEditing(null)}
         />
@@ -196,18 +198,20 @@ function StatusPill({ label, count, tone }: { label: string; count: number; tone
 
 function EntityRow({
   entity,
+  category,
   isFresh,
   onApprove,
   onEdit,
   onRemove,
 }: {
   entity: ReviewedEntity;
+  category: EntityCategory;
   isFresh: boolean;
   onApprove: () => void;
   onEdit: () => void;
   onRemove: () => void;
 }) {
-  const columns = DISPLAY_COLUMNS[categoryOfEntity(entity)];
+  const columns = DISPLAY_COLUMNS[category];
   const attrs = columns
     .filter((c) => (entity[c.key] as string) !== "" && (entity[c.key] as string) !== undefined)
     .map((c) => (
@@ -257,30 +261,20 @@ function EntityRow({
   );
 }
 
-// Small helper to infer the category from a ReviewedEntity's evidence (used by
-// the display-column map, which is keyed by category).
-function categoryOfEntity(entity: ReviewedEntity): EntityCategory {
-  const name = entity?.name?.toLowerCase() ?? "";
-  if (/\b(ship|starship|station|outpost|vessel|spacecraft|spaceship)\b/.test(name)) return "spacecraft";
-  if (/\b(building|tower|palace|castle|factory|temple|station|colony|outpost|headquarters)\b/.test(name)) return "buildings";
-  if (/\b(loc|place|world|planet|biome|environment|region)\b/.test(name)) return "locations";
-  if (/\b(weapon|rifle|gun|blade|sword|armor|suit|tool|device|prop|artifact|asset|object)\b/.test(name)) return "assets";
-  return "characters";
-}
-
 interface EditDialogProps {
   open: boolean;
   entity: ReviewedEntity;
+  category: EntityCategory;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function EditDialog({ open, entity, onClose, onSaved }: EditDialogProps) {
+function EditDialog({ open, entity, category, onClose, onSaved }: EditDialogProps) {
   const { updateEntity } = useProject();
   const [draft, setDraft] = useState<ReviewedEntity>(entity);
 
   const save = () => {
-    updateEntity(categoryOfEntity(draft), draft.id, draft);
+    updateEntity(category, draft.id, draft);
     onSaved();
   };
 
@@ -291,7 +285,7 @@ function EditDialog({ open, entity, onClose, onSaved }: EditDialogProps) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit {LABELS[categoryOfEntity(draft)]}</DialogTitle>
+          <DialogTitle>Edit {LABELS[category]}</DialogTitle>
           <DialogDescription>
             {draft.status === "inferred" ? "Review this AI extraction and edit it before confirming it as project data." : "Update the canonical project entry."}
             {draft.evidence.sourceRelativePath ? ` · Source: ${draft.evidence.sourceRelativePath}` : ""}

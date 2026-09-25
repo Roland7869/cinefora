@@ -58,9 +58,9 @@ export function ExtractionRunner({ category, loading, result, rows, onRun, onExp
               <CardDescription>Feed the active book section to your configured AI engine.</CardDescription>
             </div>
           </div>
-          <Button size="sm" onClick={onRun} disabled={loading || result !== null || !source}>
+          <Button size="sm" onClick={onRun} disabled={loading || !source}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="h-4 w-4 mr-2" />}
-            {loading ? "Running…" : "Run"}
+            {loading ? "Running…" : result ? "Run again" : "Run"}
           </Button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">

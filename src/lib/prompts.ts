@@ -287,6 +287,21 @@ export function formatScriptBeatsAsMarkdown(beats: ScriptBeat[]): string {
   return lines.join("\n");
 }
 
+// Guard against panels stored as objects (never render "[object Object]").
+function panelText(panel: unknown): string {
+  if (typeof panel === "string") return panel.trim() === "[object Object]" ? "" : panel;
+  if (typeof panel === "number" || typeof panel === "boolean") return String(panel);
+  if (Array.isArray(panel)) return panel.map(panelText).filter(Boolean).join(" — ");
+  if (panel && typeof panel === "object") {
+    return Object.values(panel as Record<string, unknown>)
+      .filter((v) => typeof v === "string" || typeof v === "number")
+      .map(String)
+      .filter((v) => v.trim())
+      .join(" — ");
+  }
+  return "";
+}
+
 export function formatStoryboardBeatsAsMarkdown(beats: StoryboardBeat[]): string {
   if (beats.length === 0) return "# Storyboard Shots\n\nNo shots generated yet.";
   const lines: string[] = ["# Storyboard Shots\n"];
@@ -302,7 +317,8 @@ export function formatStoryboardBeatsAsMarkdown(beats: StoryboardBeat[]): string
       lines.push("### Panels");
       b.panels.forEach((p, i) => {
         const ts = ["00:00", "00:05", "00:10", "00:15"][i] ?? `00:${String(i * 5).padStart(2, "0")}`;
-        lines.push(`- **Panel ${i + 1} (${ts}):** ${p}`);
+        const text = panelText(p);
+        if (text) lines.push(`- **Panel ${i + 1} (${ts}):** ${text}`);
       });
       lines.push("");
     }

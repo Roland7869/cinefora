@@ -171,6 +171,30 @@ export function parseScriptBeats(
   });
 }
 
+// AI models sometimes return storyboard panels as objects instead of plain
+// strings (e.g. { timestamp, description }). Flatten them to readable text.
+function panelToString(panel: unknown): string {
+  if (typeof panel === "string") return panel;
+  if (typeof panel === "number" || typeof panel === "boolean") return String(panel);
+  if (Array.isArray(panel)) return panel.map(panelToString).join(" — ");
+  if (panel && typeof panel === "object") {
+    const record = panel as Record<string, unknown>;
+    const keys = ["description", "content", "text", "caption", "action", "visual", "shot", "panel", "time", "timestamp"];
+    const preferred = keys.map((k) => record[k]).filter((v) => typeof v === "string" && v.trim()) as string[];
+    if (preferred.length > 0) {
+      const rest = Object.values(record).filter(
+        (v) => typeof v === "string" && v.trim() && !preferred.includes(v),
+      ) as string[];
+      return [...preferred, ...rest].join(" — ");
+    }
+    return Object.values(record)
+      .filter((v) => typeof v === "string" || typeof v === "number")
+      .map(String)
+      .join(" — ");
+  }
+  return "";
+}
+
 export function parseStoryboardBeats(
   jsonText: string,
   activeSource: { sources?: { id?: string; relativePath?: string; title?: string; chapter?: string }[] } | null,
@@ -209,7 +233,7 @@ export function parseStoryboardBeats(
       primaryFocus: String(item.primary_focus ?? ""),
       shotScale: String(item.shot_scale ?? ""),
       cameraMovement: String(item.camera_movement ?? ""),
-      panels: Array.isArray(item.panels) ? (item.panels as unknown[]).map(String) : [],
+      panels: Array.isArray(item.panels) ? (item.panels as unknown[]).map(panelToString) : [],
       lighting: String(item.lighting ?? ""),
       movement: String(item.movement ?? ""),
       sourceId: evidence.sourceId,
